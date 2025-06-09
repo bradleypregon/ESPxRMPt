@@ -1,3 +1,11 @@
+/*
+  Libraries, I don't know if the .ino has this data when cloning from Github :-/
+  - Bits and Droids flight sim library
+  - ESP32Encoder
+  - Joystick
+  - TFT_eSPI
+*/
+
 #include <TFT_eSPI.h>
 #include <ESP32Encoder.h>
 #include <BitsAndDroidsFlightConnector.h>
@@ -8,6 +16,8 @@ BitsAndDroidsFlightConnector connector = BitsAndDroidsFlightConnector();
 //#define TFT_GREY 0x5AEB // New colour
 
 /*
+Notes
+Screen: 480x320
 COM1, COM2, NAV1, NAV2, and maybe squawk
 Active ACT and Standby STBY freqs
 Tapping Standby allows rotary encoder to edit freq
