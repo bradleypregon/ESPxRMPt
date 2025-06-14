@@ -29,9 +29,9 @@ Extra:
   - Rx mute buttons for COM freqs
 
     |-----------------|                   |-----------------|
-    |                 |                   |                 |
-C1  |     123.456     |    Rx    Swap     |     123.456     |
-    |                 |                   |                 |
+    |                 |      ------       |                 |
+C1  |     123.456     |      | Rx |       |     123.456     |
+    |                 |      ------       |                 |
     |-----------------|                   |-----------------|
 */
 
@@ -50,7 +50,7 @@ enum CustomCommands {
   setCom1Tx   = 4,
   setCom1Rx   = 5,
   setCom2Tx   = 6,
-  setCom3Rx   = 7
+  setCom2Rx   = 7
 };
 
 struct RoundedRectangle { 
@@ -65,19 +65,19 @@ struct RoundedRectangle {
 
 RoundedRectangle com1ACT = { 
   xMargin,
-  yMargin,
-  150,
-  75,
+  30,
+  160,
+  60,
   4,
-  TFT_WHITE,
-  sendSwapCom1
+  TFT_GREEN,
+  setCom1Tx
 };
 
 RoundedRectangle com1STBY = { 
-  com1ACT.x + com1ACT.width + xMargin,
-  yMargin,
-  150,
-  75,
+  300, //com1ACT.x + com1ACT.width + xMargin
+  com1ACT.y,
+  160,
+  60,
   4,
   TFT_WHITE,
   setCom1Edit
@@ -85,23 +85,65 @@ RoundedRectangle com1STBY = {
 
 RoundedRectangle com2ACT = { 
   xMargin,
-  com1ACT.y + com1ACT.height + yMargin,
-  150,
-  75,
+  100, //com1ACT.y + com1ACT.height + yMargin
+  160,
+  60,
   4,
   TFT_WHITE,
-  sendSwapCom2
+  setCom2Tx
 };
 
 RoundedRectangle com2STBY = { 
-  com2ACT.x + com2ACT.width + xMargin,
-  com1ACT.y + com1ACT.height + yMargin,
-  150,
-  75,
+  300, //com2ACT.x + com2ACT.width + xMargin
+  com2ACT.y, //com1ACT.y + com1ACT.height + yMargin
+  160,
+  60,
   4,
   TFT_WHITE,
   setCom2Edit
 };
+
+RoundedRectangle nav1ACT = { 
+  xMargin,
+  190,
+  160,
+  50,
+  4,
+  TFT_WHITE,
+  setNav1Edit
+};
+
+RoundedRectangle nav1STBY = { 
+  300,
+  nav1ACT.y,
+  160,
+  50,
+  4,
+  TFT_WHITE,
+  setNav1Edit
+};
+
+RoundedRectangle nav2ACT = { 
+  xMargin,
+  250,
+  160,
+  50,
+  4,
+  TFT_WHITE,
+  setNav2Edit
+};
+
+RoundedRectangle nav2STBY = { 
+  300,
+  nav2ACT.y,
+  160,
+  50,
+  4,
+  TFT_WHITE,
+  setNav2Edit
+};
+
+
 
 void startTouchGestureRecognizer() { 
   if(tft.getTouch(&tX, &tY)) { 
@@ -109,14 +151,14 @@ void startTouchGestureRecognizer() {
     // if touch is between (button.x) and (button.x + width) and (button.y) and (button.y + height)
     // Com ACT
     if((tX > com1ACT.x && tX < com1ACT.x + com1ACT.width) && (tY > com1ACT.y && tY < com1ACT.y + com1ACT.height)) { 
-      handleComActTouched(com1ACT);
+      handleCom1ACTTouched(com1ACT);
     }
     if((tX > com2ACT.x && tX < com2ACT.x + com2ACT.width) && (tY > com2ACT.y && tY < com2ACT.y + com2ACT.height)) { 
-      handleComActTouched(com2ACT);
+      handleCom2ACTTouched(com2ACT);
     }
     // Com STBY
     if((tX > com1STBY.x && tX < com1STBY.x + com1STBY.width) && (tY > com1STBY.y && tY < com1STBY.y + com1STBY.height)) { 
-      handlStbyTouched(com1STBY);
+      handleStbyTouched(com1STBY);
     }
     if((tX > com2STBY.x && tX < com2STBY.x + com2STBY.width) && (tY > com2STBY.y && tY < com2STBY.y + com2STBY.height)) { 
       handleStbyTouched(com2STBY);
@@ -127,30 +169,41 @@ void startTouchGestureRecognizer() {
 }
 
 /*
-  Handle COM ACT being touched
-  Draw a filled white rect, perform action
-  After 500ms, call resetComACT
+  Handle COM 1 ACT being touched
   Params: rect: RoundedRectangle
 */
-void handleComActTouched(RoundedRectangle rect) { 
-  RoundedRectangle temp = rect;
-  temp.color = TFT_WHITE;
+void handleCom1ACTTouched(RoundedRectangle rect) { 
+  //RoundedRectangle temp = rect;
+  //temp.color = TFT_GREEN;
+  //drawFillRoundedRect(temp);
+  rect.color = TFT_GREEN;
+  drawFillRoundedRect(rect);
+
+  // Reset Com 2 ACT
+  RoundedRectangle temp = com2ACT;
+  temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
-  Serial.println("Swap Com");
-  delay(500);
-  resetComACT(rect);
+  temp.color = TFT_WHITE;
+  drawOutlineRoundedRect(temp);
+
+  Serial.println("Set COM 1 ACT Tx");
 }
 
-/*
-  Reset ComACT Rect
-  Draw a black square with a white outline
-  Params: RoundedRectangle
-*/
-void resetComACT(RoundedRectangle rect) { 
-  RoundedRectangle temp = rect;
-  temp.color = TFT_BLACK; 
+void handleCom2ACTTouched(RoundedRectangle rect) { 
+  //RoundedRectangle temp = rect;
+  //temp.color = TFT_GREEN;
+  //drawFillRoundedRect(temp);
+  rect.color = TFT_GREEN;
+  drawFillRoundedRect(rect);
+
+  // reset Com 1 ACT
+  RoundedRectangle temp = com1ACT;
+  temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
-  drawOutlineRoundedRect(rect);
+  temp.color = TFT_WHITE;
+  drawOutlineRoundedRect(temp);
+
+  Serial.println("Set COM 2 ACT Tx");
 }
 
 
@@ -166,6 +219,15 @@ void drawOutlineRoundedRect(RoundedRectangle rect) {
   tft.drawRoundRect(rect.x, rect.y, rect.width, rect.height, rect.cornerRadius, rect.color);
 }
 
+void drawStaticLabels() { 
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.drawString("ACT", 80, 10); //((com1ACT.x + com1ACT.width) / 2) - 20, 10
+  tft.drawString("STBY", 360, 10); //((com1STBY.x + com1STBY.width) / 2) - 30, 10
+  tft.drawString("COM", 222, 10);
+  tft.drawString("NAV", 222, 170);
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -173,60 +235,21 @@ void setup() {
   tft.init();
 
   tft.fillScreen(TFT_BLACK);
-  drawOutlineRoundedRect(com1ACT);
+
+  drawFillRoundedRect(com1ACT);
   drawFillRoundedRect(com1STBY);
+
   drawOutlineRoundedRect(com2ACT);
   drawOutlineRoundedRect(com2STBY);
+
+  drawOutlineRoundedRect(nav1ACT);
+  drawOutlineRoundedRect(nav1STBY);
+  drawOutlineRoundedRect(nav2ACT);
+  drawOutlineRoundedRect(nav2STBY);
+
+  drawStaticLabels();
 }
 
 void loop() {
   startTouchGestureRecognizer();
 }
-
-// old stuff
-/*
-float com1ACT = 122.800;
-float com1STBY = 121.900;
-float com2ACT = 121.500;
-float com2STBY = 122.800;
-float nav1ACT = 109.10;
-float nav1STBY = 110.10;
-float nav2ACT = 110.45;
-float nav2STBY = 109.45;
-
-void testSetupStuff() { 
-  tft.fillScreen(TFT_BLACK); 
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextFont(4);
-  tft.setCursor(50, 0);
-  tft.println("ACT");
-  tft.setCursor(100, 0);
-  tft.println("STBY");
-}
-
-void testLoopStuff() { 
-  // Set "cursor" at top left corner of display (0,0) and select font 2
-  // (cursor will move to next line automatically during printing with 'tft.println'
-  //  or stay on the line is there is room for the text with tft.print)
-  tft.setCursor(0, 0);
-  tft.setTextFont(4);
-  tft.setTextSize(2);
-  tft.println("COM1");
-  tft.setTextSize(3);
-  char buffer[10];
-  sprintf(buffer, "%.3f", com1ACT);
-  tft.println(buffer);
-  tft.setTextSize(2);
-  tft.println("COM2");
-  tft.setTextSize(3);
-  tft.println(com2ACT);
-  tft.setTextSize(2);
-  tft.println("NAV1");
-  tft.setTextSize(3);
-  tft.println(nav1ACT);
-  tft.setTextSize(2);
-  tft.println("NAV2");
-  tft.setTextSize(3);
-  tft.println(nav2ACT);
-}
-*/
