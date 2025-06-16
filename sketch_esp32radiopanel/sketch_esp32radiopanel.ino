@@ -163,19 +163,28 @@ void startTouchGestureRecognizer() {
     if((tX > com2STBY.x && tX < com2STBY.x + com2STBY.width) && (tY > com2STBY.y && tY < com2STBY.y + com2STBY.height)) { 
       handleStbyTouched(com2STBY);
     }
-    // Nav ACT
-    
+
+    // Nav STBY
+    if((tX > nav1STBY.x && tX < nav1STBY.x + nav1STBY.width) && (tY > nav1STBY.y && tY < nav1STBY.y + nav1STBY.height)) { 
+      handleStbyTouched(nav1STBY);
+    }
+    if((tX > nav2STBY.x && tX < nav2STBY.x + nav2STBY.width) && (tY > nav2STBY.y && tY < nav2STBY.y + nav2STBY.height)) { 
+      handleStbyTouched(nav2STBY);
+    }
   }
 }
 
 /*
   Handle COM 1 ACT being touched
+    - Makes COM 1 ACT RoundedRectangle green
+    - Makes COM 2 ACT RoundedRectangle black
   Params: rect: RoundedRectangle
 */
 void handleCom1ACTTouched(RoundedRectangle rect) { 
   //RoundedRectangle temp = rect;
   //temp.color = TFT_GREEN;
   //drawFillRoundedRect(temp);
+
   rect.color = TFT_GREEN;
   drawFillRoundedRect(rect);
 
@@ -208,7 +217,9 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
 
 
 void handleStbyTouched(RoundedRectangle rect) { 
-  // one square filled white, others outline white
+  // Fill rect with white, make text black
+  // Fill other rects black, make text white
+
 }
 
 void drawFillRoundedRect(RoundedRectangle rect) { 
@@ -227,6 +238,19 @@ void drawStaticLabels() {
   tft.drawString("COM", 222, 10);
   tft.drawString("NAV", 222, 170);
 }
+
+/*
+  Freq labels -> x,y
+  com1act: 40,40
+  com1stby: 320,40
+  com2act: 40,120
+  com2stby: 320,120
+
+  nav1act: 50,200
+  nav1stby: 330,200
+  nav2act: 50,260
+  nav2stby: 330,260
+*/ 
 
 void setup() {
   // put your setup code here, to run once:
