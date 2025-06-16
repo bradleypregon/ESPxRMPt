@@ -143,7 +143,16 @@ RoundedRectangle nav2STBY = {
   setNav2Edit
 };
 
+// Initial freqs
+char com1act = "122.800";
+char com1stby = "118.200";
+char com2act = "121.500";
+char com2stby = "123.455";
 
+char nav1act = "110.10";
+char nav1stby = "109.10";
+char nav2act = "110.15";
+char nav2stby = "108.10";
 
 void startTouchGestureRecognizer() { 
   if(tft.getTouch(&tX, &tY)) { 
@@ -215,7 +224,6 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
   Serial.println("Set COM 2 ACT Tx");
 }
 
-
 void handleStbyTouched(RoundedRectangle rect) { 
   // Fill rect with white, make text black
   // Fill other rects black, make text white
@@ -240,6 +248,9 @@ void drawStaticLabels() {
 }
 
 /*
+  Draw initial frequency labels
+  Com1 Stby has black text with white background
+
   Freq labels -> x,y
   com1act: 40,40
   com1stby: 320,40
@@ -250,7 +261,23 @@ void drawStaticLabels() {
   nav1stby: 330,200
   nav2act: 50,260
   nav2stby: 330,260
-*/ 
+*/
+void drawFreqLabels() { 
+  tft.setTextSize(3);
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.drawString(com1stby, 320, 40);
+
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+  tft.drawString(com1act, 40, 40);
+  tft.drawString(com2act, 40, 120);
+  tft.drawString(com2stby, 320, 120);
+
+  tft.drawString(nav1act, 50, 200);
+  tft.drawString(nav1stby, 330, 200);
+  tft.drawString(nav2act, 50, 260);
+  tft.drawString(nav2stby, 330, 260);
+}
 
 void setup() {
   // put your setup code here, to run once:
@@ -272,6 +299,7 @@ void setup() {
   drawOutlineRoundedRect(nav2STBY);
 
   drawStaticLabels();
+  drawFreqLabels();
 }
 
 void loop() {
