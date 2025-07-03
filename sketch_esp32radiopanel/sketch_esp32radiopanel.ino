@@ -35,7 +35,21 @@ C1  |     123.456     |      | Rx |       |     123.456     |
     |-----------------|                   |-----------------|
 */
 
-boolean isSelected = false;
+/*
+  Dual Encoder GPIO Pins
+  Small knob:
+    - A (cw)  -> GPIO25/D25 Pin 14
+    - B (ccw) -> GPIO26/D26 Pin 15
+  Big knob:
+    - a (cw)  -> GPIO32/D32 Pin 12
+    - b (ccw) -> GPIO33/D33 Pin 13
+  Switch:
+    - switch  -> GPIO27/D27 Pin 16
+*/
+
+const int bigA = 32, bigB = 33;
+const int smallA = 25, smallB = 26;
+const int sw = 27;
 
 uint16_t tX = 0, tY = 0;
 byte xMargin = 20;
@@ -252,12 +266,34 @@ void drawStaticLabels() {
   nav2stby: 330,260
 */ 
 
+void IRAM_ATTR smallISR() { 
+  bool a = digitalRead(smallA);
+  bool b = digitalRead(smallB);
+  Serial.println((a ^ b) ? "Small INC" : "Small DEC");
+}
+
+void IRAM_ATTR bigISR() { 
+  bool a = digitalRead(bigA);
+  bool b = digitalRead(bigB);
+  Serial.println((a ^ b) ? "Big INC" : "Big DEC");
+}
+
+void IRAM_ATTR swISR() { 
+  static uint32_t last = 0;
+  uint32_t now = millis();
+  if (now - last > 15) { 
+    Serial.println("Switch Button Pressed");
+  }
+  last = now;
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   tft.setRotation(1);
   tft.init();
 
+  // Screen Setup
   tft.fillScreen(TFT_BLACK);
 
   drawFillRoundedRect(com1ACT);
@@ -272,6 +308,19 @@ void setup() {
   drawOutlineRoundedRect(nav2STBY);
 
   drawStaticLabels();
+
+  // Encoder Setup
+  pinMode(smallA, INPUT_PULLUP);
+  pinMode(smallB, INPUT_PULLUP);
+  pinMode(bigA, INPUT_PULLUP);
+  pinMode(bigB, INPUT_PULLUP);
+  pinMode(sw, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(smallA), smallISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(smallB), smallISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(bigA), bigISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(bigB), bigISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(sw), swISR, CHANGE);
 }
 
 void loop() {
