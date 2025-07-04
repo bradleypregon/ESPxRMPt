@@ -16,6 +16,17 @@ BitsAndDroidsFlightConnector connector = BitsAndDroidsFlightConnector();
 //#define TFT_GREY 0x5AEB // New colour
 
 /*
+  TODO:
+    1. Implement the rest of frequency label inputs from connector
+    2. Change base frequencies to char array -> String is heavy
+    2. Fix rotary encoder -> https://github.com/mo-thunderz/RotaryEncoder/blob/main/Arduino/ArduinoRotaryEncoder/ArduinoRotaryEncoder.ino
+    3. Fix text label color on tap of rectangle
+    4. Refactor code so it is reusable
+      - use pointers?
+    5. Add optional outlineColor to RoundedRectangle struct -> avoids needing to draw 2 rectangles in the handleComTouched functions
+*/
+
+/*
 Notes
 Screen: 480x320
 COM1, COM2, NAV1, NAV2, and maybe squawk
@@ -158,15 +169,14 @@ RoundedRectangle nav2STBY = {
 };
 
 // Initial freqs
-char com1act = "122.800";
-char com1stby = "118.200";
-char com2act = "121.500";
-char com2stby = "123.455";
-
-char nav1act = "110.10";
-char nav1stby = "109.10";
-char nav2act = "110.15";
-char nav2stby = "108.10";
+String com1act  = "##.##";
+String com1stby = "##.##";
+String com2act  = "##.##";
+String com2stby = "##.##";
+String nav1act  = "#.#";
+String nav1stby = "#.#";
+String nav2act  = "#.#";
+String nav2stby = "#.#";
 
 void startTouchGestureRecognizer() { 
   if(tft.getTouch(&tX, &tY)) { 
@@ -179,20 +189,21 @@ void startTouchGestureRecognizer() {
     if((tX > com2ACT.x && tX < com2ACT.x + com2ACT.width) && (tY > com2ACT.y && tY < com2ACT.y + com2ACT.height)) { 
       handleCom2ACTTouched(com2ACT);
     }
+
     // Com STBY
     if((tX > com1STBY.x && tX < com1STBY.x + com1STBY.width) && (tY > com1STBY.y && tY < com1STBY.y + com1STBY.height)) { 
-      handleStbyTouched(com1STBY);
+      handleCom1STBYTouched(com1STBY);
     }
     if((tX > com2STBY.x && tX < com2STBY.x + com2STBY.width) && (tY > com2STBY.y && tY < com2STBY.y + com2STBY.height)) { 
-      handleStbyTouched(com2STBY);
+      handleCom2STBYTouched(com2STBY);
     }
 
     // Nav STBY
     if((tX > nav1STBY.x && tX < nav1STBY.x + nav1STBY.width) && (tY > nav1STBY.y && tY < nav1STBY.y + nav1STBY.height)) { 
-      handleStbyTouched(nav1STBY);
+      //handleNav1STBYTouched(nav1STBY);
     }
     if((tX > nav2STBY.x && tX < nav2STBY.x + nav2STBY.width) && (tY > nav2STBY.y && tY < nav2STBY.y + nav2STBY.height)) { 
-      handleStbyTouched(nav2STBY);
+      //handleNav2STBYTouched(nav2STBY);
     }
   }
 }
@@ -204,10 +215,7 @@ void startTouchGestureRecognizer() {
   Params: rect: RoundedRectangle
 */
 void handleCom1ACTTouched(RoundedRectangle rect) { 
-  //RoundedRectangle temp = rect;
-  //temp.color = TFT_GREEN;
-  //drawFillRoundedRect(temp);
-
+  // Set COM1 ACT Rect Green
   rect.color = TFT_GREEN;
   drawFillRoundedRect(rect);
 
@@ -217,31 +225,77 @@ void handleCom1ACTTouched(RoundedRectangle rect) {
   drawFillRoundedRect(temp);
   temp.color = TFT_WHITE;
   drawOutlineRoundedRect(temp);
-
+  
+  // Set COM 1 Tx
   Serial.println("Set COM 1 ACT Tx");
 }
 
+/*
+  Handle COM 2 ACT being touched
+    - Makes COM 2 ACT RoundedRectangle green
+    - Makes COM 1 ACT RoundedRectangle black
+  Params: rect: RoundedRectangle
+*/
 void handleCom2ACTTouched(RoundedRectangle rect) { 
-  //RoundedRectangle temp = rect;
-  //temp.color = TFT_GREEN;
-  //drawFillRoundedRect(temp);
+  // Set COM2 ACT Rect Green
   rect.color = TFT_GREEN;
   drawFillRoundedRect(rect);
 
-  // reset Com 1 ACT
+  // Reset Com 1 ACT
   RoundedRectangle temp = com1ACT;
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
   temp.color = TFT_WHITE;
   drawOutlineRoundedRect(temp);
 
+  // Set COM 2 Tx
   Serial.println("Set COM 2 ACT Tx");
 }
 
-void handleStbyTouched(RoundedRectangle rect) { 
-  // Fill rect with white, make text black
-  // Fill other rects black, make text white
+/*
+  Handle COM 1 STBY being touched
+    - Makes COM 1 STBY RoundedRectangle white
+    - Makes COM 2 STBY RoundedRectangle black
+    - Set COM 1 STBY Text Black
+    - Set COM 2 STBY Text White
+  Params: rect: RoundedRectangle
+*/
+void handleCom1STBYTouched(RoundedRectangle rect) { 
+  // Set COM1 STBY Rect White
+  rect.color = TFT_WHITE;
+  drawFillRoundedRect(rect);
 
+  // Reset Com 2 STBY
+  RoundedRectangle temp = com1STBY;
+  temp.color = TFT_BLACK;
+  drawFillRoundedRect(temp);
+  temp.color = TFT_WHITE;
+  drawOutlineRoundedRect(temp);
+  
+  Serial.println("Set COM 1 STBY Edit");
+}
+
+/*
+  Handle COM 2 STBY being touched
+    - Makes COM 2 STBY RoundedRectangle white
+    - Makes COM 1 STBY RoundedRectangle black
+    - Set COM 2 STBY Text Black
+    - Set COM 1 STBY Text White
+  Params: rect: RoundedRectangle
+*/
+void handleCom2STBYTouched(RoundedRectangle rect) { 
+  // Set COM2 STBY Rect White
+  rect.color = TFT_WHITE;
+  drawFillRoundedRect(rect);
+
+  // Reset Com 2 ACT
+  RoundedRectangle temp = com2STBY;
+  temp.color = TFT_BLACK;
+  drawFillRoundedRect(temp);
+  temp.color = TFT_WHITE;
+  drawOutlineRoundedRect(temp);
+  
+  Serial.println("Set COM 2 STBY Edit");
 }
 
 void drawFillRoundedRect(RoundedRectangle rect) { 
@@ -279,18 +333,19 @@ void drawStaticLabels() {
 void drawFreqLabels() { 
   tft.setTextSize(3);
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  //tft.drawString(String(com1stby, 3), 320, 40);
   tft.drawString(com1stby, 320, 40);
 
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
 
+  //tft.drawString(String(com1act, 3), 40, 40);
+  //tft.drawString(String(com2act, 3), 40, 120);
+  //tft.drawString(String(com2stby, 3), 320, 120);
+  //tft.drawString(String(nav1act, 2), 50, 200);
+  //tft.drawString(String(nav1stby, 2), 330, 200);
+  //tft.drawString(String(nav2act, 2), 50, 260);
+  //tft.drawString(String(nav2stby, 2), 330, 260);
   tft.drawString(com1act, 40, 40);
-  tft.drawString(com2act, 40, 120);
-  tft.drawString(com2stby, 320, 120);
-
-  tft.drawString(nav1act, 50, 200);
-  tft.drawString(nav1stby, 330, 200);
-  tft.drawString(nav2act, 50, 260);
-  tft.drawString(nav2stby, 330, 260);
 }
 
 void IRAM_ATTR smallISR() { 
@@ -314,6 +369,17 @@ void IRAM_ATTR swISR() {
   last = now;
 }
 
+void getFreqs() { 
+  long temp = connector.getActiveCom1();
+  long whole = temp / 1000;
+  long frac = abs(temp % 1000);
+
+  char buf[12];
+  snprintf(buf, sizeof(buf), "%ld.%03d", whole, frac);
+
+  tft.drawString(buf, 40, 40);
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -335,6 +401,8 @@ void setup() {
   drawOutlineRoundedRect(nav2STBY);
 
   drawStaticLabels();
+  drawFreqLabels();
+
 
   // Encoder Setup
   pinMode(smallA, INPUT_PULLUP);
@@ -348,9 +416,12 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(bigA), bigISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(bigB), bigISR, CHANGE);
   attachInterrupt(digitalPinToInterrupt(sw), swISR, CHANGE);
-  drawFreqLabels();
+
 }
 
 void loop() {
   startTouchGestureRecognizer();
+  
+  connector.dataHandling();
+  getFreqs();
 }
