@@ -3,27 +3,19 @@
   - Bits and Droids flight sim library
   - ESP32Encoder
   - Joystick
-  - TFT_eSPI
+  - bodmer TFT_eSPI
 */
-
-#include <TFT_eSPI.h>
-#include <ESP32Encoder.h>
-#include <BitsAndDroidsFlightConnector.h>
-
-TFT_eSPI tft = TFT_eSPI();
-BitsAndDroidsFlightConnector connector = BitsAndDroidsFlightConnector();
-
-//#define TFT_GREY 0x5AEB // New colour
 
 /*
   TODO:
     1. Implement the rest of frequency label inputs from connector
-    2. Change base frequencies to char array -> String is heavy
     2. Fix rotary encoder -> https://github.com/mo-thunderz/RotaryEncoder/blob/main/Arduino/ArduinoRotaryEncoder/ArduinoRotaryEncoder.ino
+      - Debounce button: https://www.programmingelectronics.com/debouncing-a-button-with-arduino/#:~:text=Step%2Dby%2DStep%20Debounce%20Instructions&text=Connect%20the%20220%2Dohm%20resistor,other%20side%20of%20the%20pushbutton.
     3. Fix text label color on tap of rectangle
     4. Refactor code so it is reusable
       - use pointers?
-    5. Add optional outlineColor to RoundedRectangle struct -> avoids needing to draw 2 rectangles in the handleComTouched functions
+    5. Make FreqLabel struct with char[] label, x: int, y: int
+      - make function DrawLabel with params Label: FreqLabel, Color: Int
 */
 
 /*
@@ -58,25 +50,47 @@ C1  |     123.456     |      | Rx |       |     123.456     |
     - switch  -> GPIO27/D27 Pin 16
 */
 
-const int bigA = 32, bigB = 33;
-const int smallA = 25, smallB = 26;
-const int sw = 27;
+#include <TFT_eSPI.h>
+#include <ESP32Encoder.h>
+#include <BitsAndDroidsFlightConnector.h>
+
+TFT_eSPI tft = TFT_eSPI();
+BitsAndDroidsFlightConnector connector = BitsAndDroidsFlightConnector();
+
+#define TFT_GREY 0x5AEB
+#define bigA 32
+#define bigB 33
+#define smallA 25
+#define smallB 26
+#define sw 27
+#define comBuff 8
+#define navBuff 7
 
 uint16_t tX = 0, tY = 0;
 byte xMargin = 20;
 byte yMargin = 20;
 
-enum CustomCommands { 
-  setCom1Edit = 0,
-  setCom2Edit = 1,
-  setNav1Edit = 2,
-  setNav2Edit = 3,
+// Encoder Inits
+unsigned long _lastBigIncReadTime = micros();
+unsigned long _lastBigDecReadTime = micros();
+unsigned long _lastSmallIncReadTime = micros();
+unsigned long _lastSmallDecReadTime = micros();
+int _encDelay = 25000;
+int _fastInc = 10;
 
-  setCom1Tx   = 4,
-  setCom1Rx   = 5,
-  setCom2Tx   = 6,
-  setCom2Rx   = 7
+// Encoder Switch Init
+unsigned long _lastSwReadTime = micros();
+long _swDelay = 100;
+
+enum Commands { 
+  setCom1Tx  = 0,
+  setCom1Rx  = 1,
+  setCom2Tx  = 2,
+  setCom2Rx  = 3
 };
+
+enum ActiveEdit { COM1, COM2, NAV1, NAV2 };
+ActiveEdit curr;
 
 struct RoundedRectangle { 
   int x;
@@ -85,7 +99,7 @@ struct RoundedRectangle {
   int height;
   int cornerRadius;
   int color;
-  int command;
+  int command = -1;
 };
 
 RoundedRectangle com1ACT = { 
@@ -104,8 +118,7 @@ RoundedRectangle com1STBY = {
   160,
   60,
   4,
-  TFT_WHITE,
-  setCom1Edit
+  TFT_WHITE
 };
 
 RoundedRectangle com2ACT = { 
@@ -124,8 +137,7 @@ RoundedRectangle com2STBY = {
   160,
   60,
   4,
-  TFT_WHITE,
-  setCom2Edit
+  TFT_WHITE
 };
 
 RoundedRectangle nav1ACT = { 
@@ -134,8 +146,7 @@ RoundedRectangle nav1ACT = {
   160,
   50,
   4,
-  TFT_WHITE,
-  setNav1Edit
+  TFT_WHITE
 };
 
 RoundedRectangle nav1STBY = { 
@@ -144,8 +155,7 @@ RoundedRectangle nav1STBY = {
   160,
   50,
   4,
-  TFT_WHITE,
-  setNav1Edit
+  TFT_WHITE
 };
 
 RoundedRectangle nav2ACT = { 
@@ -154,8 +164,7 @@ RoundedRectangle nav2ACT = {
   160,
   50,
   4,
-  TFT_WHITE,
-  setNav2Edit
+  TFT_WHITE
 };
 
 RoundedRectangle nav2STBY = { 
@@ -164,19 +173,20 @@ RoundedRectangle nav2STBY = {
   160,
   50,
   4,
-  TFT_WHITE,
-  setNav2Edit
+  TFT_WHITE
 };
 
 // Initial freqs
-String com1act  = "##.##";
-String com1stby = "##.##";
-String com2act  = "##.##";
-String com2stby = "##.##";
-String nav1act  = "#.#";
-String nav1stby = "#.#";
-String nav2act  = "#.#";
-String nav2stby = "#.#";
+// Use placeholders or default freqs?
+char com1act[8]  = "122.800";
+char com1stby[8] = "122.800";
+char com2act[8]  = "121.500";
+char com2stby[8] = "121.500";
+
+char nav1act[7]  = "109.00";
+char nav1stby[7] = "109.00";
+char nav2act[7]  = "110.00";
+char nav2stby[7] = "110.00";
 
 void startTouchGestureRecognizer() { 
   if(tft.getTouch(&tX, &tY)) { 
@@ -223,8 +233,9 @@ void handleCom1ACTTouched(RoundedRectangle rect) {
   RoundedRectangle temp = com2ACT;
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
-  temp.color = TFT_WHITE;
   drawOutlineRoundedRect(temp);
+  
+  // Redraw text labels
   
   // Set COM 1 Tx
   Serial.println("Set COM 1 ACT Tx");
@@ -245,8 +256,9 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
   RoundedRectangle temp = com1ACT;
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
-  temp.color = TFT_WHITE;
   drawOutlineRoundedRect(temp);
+  
+  // Redraw text labels
 
   // Set COM 2 Tx
   Serial.println("Set COM 2 ACT Tx");
@@ -266,12 +278,19 @@ void handleCom1STBYTouched(RoundedRectangle rect) {
   drawFillRoundedRect(rect);
 
   // Reset Com 2 STBY
-  RoundedRectangle temp = com1STBY;
+  RoundedRectangle temp = com2STBY;
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
-  temp.color = TFT_WHITE;
   drawOutlineRoundedRect(temp);
-  
+
+  // Redraw Freq labels
+  // Com2
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(com2stby, 320, 120);
+  // Com1
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.drawString(com1stby, 320, 40);
+
   Serial.println("Set COM 1 STBY Edit");
 }
 
@@ -288,12 +307,19 @@ void handleCom2STBYTouched(RoundedRectangle rect) {
   rect.color = TFT_WHITE;
   drawFillRoundedRect(rect);
 
-  // Reset Com 2 ACT
-  RoundedRectangle temp = com2STBY;
+  // Reset Com 1 STBY
+  RoundedRectangle temp = com1STBY;
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
-  temp.color = TFT_WHITE;
   drawOutlineRoundedRect(temp);
+  
+  // Redraw Freq labels
+  // Com1
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(com1stby, 320, 40);
+  // Com2
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.drawString(com2stby, 320, 120);
   
   Serial.println("Set COM 2 STBY Edit");
 }
@@ -303,7 +329,7 @@ void drawFillRoundedRect(RoundedRectangle rect) {
 }
 
 void drawOutlineRoundedRect(RoundedRectangle rect) { 
-  tft.drawRoundRect(rect.x, rect.y, rect.width, rect.height, rect.cornerRadius, rect.color);
+  tft.drawRoundRect(rect.x, rect.y, rect.width, rect.height, rect.cornerRadius, TFT_GREY);
 }
 
 void drawStaticLabels() { 
@@ -332,35 +358,39 @@ void drawStaticLabels() {
 */
 void drawFreqLabels() { 
   tft.setTextSize(3);
+
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  //tft.drawString(String(com1stby, 3), 320, 40);
   tft.drawString(com1stby, 320, 40);
 
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-
-  //tft.drawString(String(com1act, 3), 40, 40);
-  //tft.drawString(String(com2act, 3), 40, 120);
-  //tft.drawString(String(com2stby, 3), 320, 120);
-  //tft.drawString(String(nav1act, 2), 50, 200);
-  //tft.drawString(String(nav1stby, 2), 330, 200);
-  //tft.drawString(String(nav2act, 2), 50, 260);
-  //tft.drawString(String(nav2stby, 2), 330, 260);
+  tft.setTextColor(TFT_WHITE, TFT_GREEN);
   tft.drawString(com1act, 40, 40);
+  
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(com2act, 40, 120);
+  tft.drawString(com2stby, 320, 120);
+  tft.drawString(nav1act, 50, 200);
+  tft.drawString(nav1stby, 330, 200);
+  tft.drawString(nav2act, 50, 260);
+  tft.drawString(nav2stby, 330, 260);
 }
 
-void IRAM_ATTR smallISR() { 
+void readSmallEncoder() { 
   bool a = digitalRead(smallA);
   bool b = digitalRead(smallB);
   Serial.println((a ^ b) ? "Small INC" : "Small DEC");
 }
 
-void IRAM_ATTR bigISR() { 
+void readBigEncoder() { 
   bool a = digitalRead(bigA);
   bool b = digitalRead(bigB);
   Serial.println((a ^ b) ? "Big INC" : "Big DEC");
 }
 
-void IRAM_ATTR swISR() { 
+/*
+  Swap Freqs for selected radio
+  e.g. If Com 1 Stby is active -> swap Com 1 radios
+*/
+void readEncoderSw() { 
   static uint32_t last = 0;
   uint32_t now = millis();
   if (now - last > 15) { 
@@ -374,7 +404,7 @@ void getFreqs() {
   long whole = temp / 1000;
   long frac = abs(temp % 1000);
 
-  char buf[12];
+  char buf[8];
   snprintf(buf, sizeof(buf), "%ld.%03d", whole, frac);
 
   tft.drawString(buf, 40, 40);
@@ -403,7 +433,6 @@ void setup() {
   drawStaticLabels();
   drawFreqLabels();
 
-
   // Encoder Setup
   pinMode(smallA, INPUT_PULLUP);
   pinMode(smallB, INPUT_PULLUP);
@@ -411,11 +440,11 @@ void setup() {
   pinMode(bigB, INPUT_PULLUP);
   pinMode(sw, INPUT_PULLUP);
 
-  attachInterrupt(digitalPinToInterrupt(smallA), smallISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(smallB), smallISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(bigA), bigISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(bigB), bigISR, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(sw), swISR, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(smallA), readSmallEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(smallB), readSmallEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(bigA), readBigEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(bigB), readBigEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(sw), readEncoderSw, CHANGE);
 
 }
 
