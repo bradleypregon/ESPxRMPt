@@ -16,12 +16,14 @@
       - use pointers?
     5. Make FreqLabel struct with char[] label, x: int, y: int
       - make function DrawLabel with params Label: FreqLabel, Color: Int
+    6. Make radio swap buttons
+    7. General optimizations
 */
 
 /*
 Notes
 Screen: 480x320
-COM1, COM2, NAV1, NAV2, and maybe squawk
+COM1, COM2, NAV1, NAV2
 Active ACT and Standby STBY freqs
 Tapping Standby allows rotary encoder to edit freq
 Tapping Transfer button switches ACT and STBY freqs
@@ -82,137 +84,204 @@ int _fastInc = 10;
 unsigned long _lastSwReadTime = micros();
 long _swDelay = 100;
 
-enum Commands { 
-  setCom1Tx  = 0,
-  setCom1Rx  = 1,
-  setCom2Tx  = 2,
-  setCom2Rx  = 3
+enum Commands {
+  setCom1Tx = 0,
+  setCom1Rx = 1,
+  setCom2Tx = 2,
+  setCom2Rx = 3
 };
 
 enum ActiveEdit { COM1, COM2, NAV1, NAV2 };
-ActiveEdit curr;
+ActiveEdit currEdit = ActiveEdit::COM1;
 
-struct RoundedRectangle { 
-  int x;
-  int y;
-  int width;
-  int height;
-  int cornerRadius;
-  int color;
+// Initial freqs
+char com1act[8] = "122.800";
+char com1stby[8] = "122.800";
+char com2act[8] = "121.500";
+char com2stby[8] = "121.500";
+
+char nav1act[7] = "109.00";
+char nav1stby[7] = "109.00";
+char nav2act[7] = "110.00";
+char nav2stby[7] = "110.00";
+
+struct RoundedRectangle {
+  int x, y, width, height;
+  int color = TFT_BLACK;
   int command = -1;
+  void draw() {
+    tft.fillRoundRect(x, y, width, height, 4, color);
+    tft.drawRoundRect(x, y, width, height, 4, TFT_GREY);
+  }
 };
 
-RoundedRectangle com1ACT = { 
+RoundedRectangle com1ACT = {
   xMargin,
   30,
   160,
   60,
-  4,
   TFT_GREEN,
   setCom1Tx
 };
 
-RoundedRectangle com1STBY = { 
-  300, //com1ACT.x + com1ACT.width + xMargin
+RoundedRectangle com1STBY = {
+  300,  //com1ACT.x + com1ACT.width + xMargin
   com1ACT.y,
   160,
   60,
-  4,
   TFT_WHITE
 };
 
-RoundedRectangle com2ACT = { 
+RoundedRectangle com2ACT = {
   xMargin,
-  100, //com1ACT.y + com1ACT.height + yMargin
+  100,  //com1ACT.y + com1ACT.height + yMargin
   160,
   60,
-  4,
-  TFT_WHITE,
   setCom2Tx
 };
 
-RoundedRectangle com2STBY = { 
-  300, //com2ACT.x + com2ACT.width + xMargin
-  com2ACT.y, //com1ACT.y + com1ACT.height + yMargin
+RoundedRectangle com2STBY = {
+  300,        //com2ACT.x + com2ACT.width + xMargin
+  com2ACT.y,  //com1ACT.y + com1ACT.height + yMargin
   160,
-  60,
-  4,
-  TFT_WHITE
+  60
 };
 
-RoundedRectangle nav1ACT = { 
+RoundedRectangle nav1ACT = {
   xMargin,
   190,
   160,
-  50,
-  4,
-  TFT_WHITE
+  50
 };
 
-RoundedRectangle nav1STBY = { 
+RoundedRectangle nav1STBY = {
   300,
   nav1ACT.y,
   160,
-  50,
-  4,
-  TFT_WHITE
+  50
 };
 
-RoundedRectangle nav2ACT = { 
+RoundedRectangle nav2ACT = {
   xMargin,
   250,
   160,
-  50,
-  4,
-  TFT_WHITE
+  50
 };
 
-RoundedRectangle nav2STBY = { 
+RoundedRectangle nav2STBY = {
   300,
   nav2ACT.y,
   160,
-  50,
-  4,
+  50
+};
+
+struct FreqLabel {
+  int x;
+  int y;
+  char* label;
+  int fgColor = TFT_WHITE;
+  void draw { 
+    
+  }
+};
+
+/*
+  Draw initial frequency labels
+  Com1 Stby has black text with white background
+
+  Freq labels -> x,y
+  com1act: 40,40
+    - green background
+    - white text
+  com1stby: 320,40
+    - white bg
+    - black text
+  com2act: 40,120
+  com2stby: 320,120
+
+  nav1act: 50,200
+  nav1stby: 330,200
+  nav2act: 50,260
+  nav2stby: 330,260
+*/
+
+FreqLabel com1ACTLbl = {
+  40,
+  40,
+  com1act,
+  TFT_GREEN,
   TFT_WHITE
 };
 
-// Initial freqs
-// Use placeholders or default freqs?
-char com1act[8]  = "122.800";
-char com1stby[8] = "122.800";
-char com2act[8]  = "121.500";
-char com2stby[8] = "121.500";
+FreqLabel com1STBYLbl = {
+  320,
+  40,
+  com1stby,
+  TFT_WHITE,
+  TFT_BLACK
+};
 
-char nav1act[7]  = "109.00";
-char nav1stby[7] = "109.00";
-char nav2act[7]  = "110.00";
-char nav2stby[7] = "110.00";
+FreqLabel com2ACTLbl = {
+  40,
+  120,
+  com2act
+};
 
-void startTouchGestureRecognizer() { 
-  if(tft.getTouch(&tX, &tY)) { 
+FreqLabel com2STBYLbl = {
+  320,
+  120,
+  com2stby
+};
+
+FreqLabel nav1ACTLbl = {
+  50,
+  200,
+  nav1act
+};
+
+FreqLabel nav1STBYLbl = {
+  330,
+  200,
+  nav1stby
+};
+
+FreqLabel nav2ACTLbl = {
+  50,
+  260,
+  nav2act
+};
+
+FreqLabel nav2STBYLbl = {
+  330,
+  260,
+  nav2stby
+};
+
+void startTouchGestureRecognizer() {
+  if (tft.getTouch(&tX, &tY)) {
     tY = 0 + (320 - tY);
     // if touch is between (button.x) and (button.x + width) and (button.y) and (button.y + height)
     // Com ACT
-    if((tX > com1ACT.x && tX < com1ACT.x + com1ACT.width) && (tY > com1ACT.y && tY < com1ACT.y + com1ACT.height)) { 
+    if ((tX > com1ACT.x && tX < com1ACT.x + com1ACT.width) && (tY > com1ACT.y && tY < com1ACT.y + com1ACT.height)) {
       handleCom1ACTTouched(com1ACT);
     }
-    if((tX > com2ACT.x && tX < com2ACT.x + com2ACT.width) && (tY > com2ACT.y && tY < com2ACT.y + com2ACT.height)) { 
+    if ((tX > com2ACT.x && tX < com2ACT.x + com2ACT.width) && (tY > com2ACT.y && tY < com2ACT.y + com2ACT.height)) {
       handleCom2ACTTouched(com2ACT);
     }
 
     // Com STBY
-    if((tX > com1STBY.x && tX < com1STBY.x + com1STBY.width) && (tY > com1STBY.y && tY < com1STBY.y + com1STBY.height)) { 
+    if ((tX > com1STBY.x && tX < com1STBY.x + com1STBY.width) && (tY > com1STBY.y && tY < com1STBY.y + com1STBY.height)) {
       handleCom1STBYTouched(com1STBY);
     }
-    if((tX > com2STBY.x && tX < com2STBY.x + com2STBY.width) && (tY > com2STBY.y && tY < com2STBY.y + com2STBY.height)) { 
+    if ((tX > com2STBY.x && tX < com2STBY.x + com2STBY.width) && (tY > com2STBY.y && tY < com2STBY.y + com2STBY.height)) {
       handleCom2STBYTouched(com2STBY);
     }
 
     // Nav STBY
-    if((tX > nav1STBY.x && tX < nav1STBY.x + nav1STBY.width) && (tY > nav1STBY.y && tY < nav1STBY.y + nav1STBY.height)) { 
+    if ((tX > nav1STBY.x && tX < nav1STBY.x + nav1STBY.width) && (tY > nav1STBY.y && tY < nav1STBY.y + nav1STBY.height)) {
       //handleNav1STBYTouched(nav1STBY);
     }
-    if((tX > nav2STBY.x && tX < nav2STBY.x + nav2STBY.width) && (tY > nav2STBY.y && tY < nav2STBY.y + nav2STBY.height)) { 
+    if ((tX > nav2STBY.x && tX < nav2STBY.x + nav2STBY.width) && (tY > nav2STBY.y && tY < nav2STBY.y + nav2STBY.height)) {
       //handleNav2STBYTouched(nav2STBY);
     }
   }
@@ -224,7 +293,7 @@ void startTouchGestureRecognizer() {
     - Makes COM 2 ACT RoundedRectangle black
   Params: rect: RoundedRectangle
 */
-void handleCom1ACTTouched(RoundedRectangle rect) { 
+void handleCom1ACTTouched(RoundedRectangle rect) {
   // Set COM1 ACT Rect Green
   rect.color = TFT_GREEN;
   drawFillRoundedRect(rect);
@@ -234,9 +303,9 @@ void handleCom1ACTTouched(RoundedRectangle rect) {
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
   drawOutlineRoundedRect(temp);
-  
+
   // Redraw text labels
-  
+
   // Set COM 1 Tx
   Serial.println("Set COM 1 ACT Tx");
 }
@@ -247,7 +316,7 @@ void handleCom1ACTTouched(RoundedRectangle rect) {
     - Makes COM 1 ACT RoundedRectangle black
   Params: rect: RoundedRectangle
 */
-void handleCom2ACTTouched(RoundedRectangle rect) { 
+void handleCom2ACTTouched(RoundedRectangle rect) {
   // Set COM2 ACT Rect Green
   rect.color = TFT_GREEN;
   drawFillRoundedRect(rect);
@@ -257,7 +326,7 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
   drawOutlineRoundedRect(temp);
-  
+
   // Redraw text labels
 
   // Set COM 2 Tx
@@ -272,7 +341,7 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
     - Set COM 2 STBY Text White
   Params: rect: RoundedRectangle
 */
-void handleCom1STBYTouched(RoundedRectangle rect) { 
+void handleCom1STBYTouched(RoundedRectangle rect) {
   // Set COM1 STBY Rect White
   rect.color = TFT_WHITE;
   drawFillRoundedRect(rect);
@@ -302,7 +371,7 @@ void handleCom1STBYTouched(RoundedRectangle rect) {
     - Set COM 1 STBY Text White
   Params: rect: RoundedRectangle
 */
-void handleCom2STBYTouched(RoundedRectangle rect) { 
+void handleCom2STBYTouched(RoundedRectangle rect) {
   // Set COM2 STBY Rect White
   rect.color = TFT_WHITE;
   drawFillRoundedRect(rect);
@@ -312,7 +381,7 @@ void handleCom2STBYTouched(RoundedRectangle rect) {
   temp.color = TFT_BLACK;
   drawFillRoundedRect(temp);
   drawOutlineRoundedRect(temp);
-  
+
   // Redraw Freq labels
   // Com1
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -320,43 +389,50 @@ void handleCom2STBYTouched(RoundedRectangle rect) {
   // Com2
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
   tft.drawString(com2stby, 320, 120);
-  
+
   Serial.println("Set COM 2 STBY Edit");
 }
 
-void drawFillRoundedRect(RoundedRectangle rect) { 
-  tft.fillRoundRect(rect.x, rect.y, rect.width, rect.height, rect.cornerRadius, rect.color);
+
+void drawInitRects() {
+  com1ACT.draw();
+  com1STBY.draw();
+  com2Act.draw();
+  com2Stby.draw();
+  nav1Act.draw();
+  nav1Stby.draw();
+  nav2Act.draw();
+  nav2Stby.draw();
 }
 
-void drawOutlineRoundedRect(RoundedRectangle rect) { 
-  tft.drawRoundRect(rect.x, rect.y, rect.width, rect.height, rect.cornerRadius, TFT_GREY);
+void drawInitFreqs() {
+  drawFreqLabel(com1ACTLbl);
+  drawFreqLabel(com1STBYLbl);
+  drawFreqLabel(com2ACTLbl);
+  drawFreqLabel(com2STBYLbl);
+  drawFreqLabel(nav1ACTLbl);
+  drawFreqLabel(nav1STBYLbl);
+  drawFreqLabel(nav2ACTLbl);
+  drawFreqLabel(nav2STBYLbl);
 }
 
-void drawStaticLabels() { 
+void drawFreqLabel(FreqLabel lbl) {
+  tft.setTextSize(3);
+  tft.setTextColor(lbl.fgColor, lbl.bgColor);
+  tft.drawString(lbl.label, lbl.x, lbl.y);
+}
+
+void drawStaticLabels() {
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextSize(2);
-  tft.drawString("ACT", 80, 10); //((com1ACT.x + com1ACT.width) / 2) - 20, 10
-  tft.drawString("STBY", 360, 10); //((com1STBY.x + com1STBY.width) / 2) - 30, 10
+  tft.drawString("ACT", 80, 10);    //((com1ACT.x + com1ACT.width) / 2) - 20, 10
+  tft.drawString("STBY", 360, 10);  //((com1STBY.x + com1STBY.width) / 2) - 30, 10
   tft.drawString("COM", 222, 10);
   tft.drawString("NAV", 222, 170);
 }
 
-/*
-  Draw initial frequency labels
-  Com1 Stby has black text with white background
-
-  Freq labels -> x,y
-  com1act: 40,40
-  com1stby: 320,40
-  com2act: 40,120
-  com2stby: 320,120
-
-  nav1act: 50,200
-  nav1stby: 330,200
-  nav2act: 50,260
-  nav2stby: 330,260
-*/
-void drawFreqLabels() { 
+// Deprecate
+void drawFreqLabels() {
   tft.setTextSize(3);
 
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
@@ -364,7 +440,7 @@ void drawFreqLabels() {
 
   tft.setTextColor(TFT_WHITE, TFT_GREEN);
   tft.drawString(com1act, 40, 40);
-  
+
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString(com2act, 40, 120);
   tft.drawString(com2stby, 320, 120);
@@ -374,13 +450,13 @@ void drawFreqLabels() {
   tft.drawString(nav2stby, 330, 260);
 }
 
-void readSmallEncoder() { 
+void readSmallEncoder() {
   bool a = digitalRead(smallA);
   bool b = digitalRead(smallB);
   Serial.println((a ^ b) ? "Small INC" : "Small DEC");
 }
 
-void readBigEncoder() { 
+void readBigEncoder() {
   bool a = digitalRead(bigA);
   bool b = digitalRead(bigB);
   Serial.println((a ^ b) ? "Big INC" : "Big DEC");
@@ -389,17 +465,18 @@ void readBigEncoder() {
 /*
   Swap Freqs for selected radio
   e.g. If Com 1 Stby is active -> swap Com 1 radios
+  Switch currEdit<ActiveEdit>
 */
-void readEncoderSw() { 
+void readEncoderSw() {
   static uint32_t last = 0;
   uint32_t now = millis();
-  if (now - last > 15) { 
+  if (now - last > 15) {
     Serial.println("Switch Button Pressed");
   }
   last = now;
 }
 
-void getFreqs() { 
+void getFreqs() {
   long temp = connector.getActiveCom1();
   long whole = temp / 1000;
   long frac = abs(temp % 1000);
@@ -411,27 +488,15 @@ void getFreqs() {
 }
 
 void setup() {
-  // put your setup code here, to run once:
   Serial.begin(115200);
   tft.setRotation(1);
   tft.init();
-
-  // Screen Setup
   tft.fillScreen(TFT_BLACK);
 
-  drawFillRoundedRect(com1ACT);
-  drawFillRoundedRect(com1STBY);
-
-  drawOutlineRoundedRect(com2ACT);
-  drawOutlineRoundedRect(com2STBY);
-
-  drawOutlineRoundedRect(nav1ACT);
-  drawOutlineRoundedRect(nav1STBY);
-  drawOutlineRoundedRect(nav2ACT);
-  drawOutlineRoundedRect(nav2STBY);
-
+  // Init draw
   drawStaticLabels();
-  drawFreqLabels();
+  drawInitRects();
+  drawInitFreqs();
 
   // Encoder Setup
   pinMode(smallA, INPUT_PULLUP);
@@ -445,12 +510,11 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(bigA), readBigEncoder, CHANGE);
   attachInterrupt(digitalPinToInterrupt(bigB), readBigEncoder, CHANGE);
   attachInterrupt(digitalPinToInterrupt(sw), readEncoderSw, CHANGE);
-
 }
 
 void loop() {
   startTouchGestureRecognizer();
-  
+
   connector.dataHandling();
   getFreqs();
 }
