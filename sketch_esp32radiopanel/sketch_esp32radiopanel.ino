@@ -361,8 +361,6 @@ void drawInitFreqs() {
   nav2ACTLbl.draw();
   nav1STBYLbl.draw();
   nav2STBYLbl.draw();
-
-  com1ACTLbl.label = "69.69";
 }
 
 void drawStaticLabels() {
@@ -420,14 +418,35 @@ void readEncoderSw() {
 }
 
 void getFreqs() {
-  long temp = connector.getActiveCom1();
-  long whole = temp / 1000;
-  long frac = abs(temp % 1000);
+  long com1a = connector.getActiveCom1();
+  long com2a = connector.getActiveCom2();
+  long com1s = connector.getStandbyCom1();
+  long com2s = connector.getStandbyCom2();
+  com1ACTLbl.label = convertFreq(com1a);
+  com2ACTLbl.label = convertFreq(com2a);
+  com1STBYLbl.label = convertFreq(com1s);
+  com2STBYLbl.label = convertFreq(com2s);
 
+  com1ACTLbl.draw();
+  com2ACTLbl.draw();
+  com1STBYLbl.draw();
+  com2STBYLbl.draw();
+
+  //long temp = connector.getActiveCom1();
+  //long whole = temp / 1000;
+  //long frac = abs(temp % 1000);
+  //char buf[8];
+  //snprintf(buf, sizeof(buf), "%ld.%03d", whole, frac);
+
+  //tft.drawString(buf, 40, 40);
+}
+
+char* convertFreq(long freq) { 
+  long whole = freq / 1000;
+  long frac = abs(freq % 1000);
   char buf[8];
   snprintf(buf, sizeof(buf), "%ld.%03d", whole, frac);
-
-  tft.drawString(buf, 40, 40);
+  return buf;
 }
 
 void setup() {
@@ -458,6 +477,6 @@ void setup() {
 void loop() {
   startTouchGestureRecognizer();
 
-  //connector.dataHandling();
+  connector.dataHandling();
   //getFreqs();
 }
