@@ -1,44 +1,3 @@
-/*
-  Libraries, I don't know if the .ino has this data when cloning from Github :-/
-  - Bits and Droids flight sim library
-  - ESP32Encoder
-  - Joystick
-  - bodmer TFT_eSPI
-*/
-
-/*
-  TODO:
-    1. Implement the rest of frequency label inputs from connector
-    2. Fix rotary encoder -> https://github.com/mo-thunderz/RotaryEncoder/blob/main/Arduino/ArduinoRotaryEncoder/ArduinoRotaryEncoder.ino
-      - Debounce button: https://www.programmingelectronics.com/debouncing-a-button-with-arduino/#:~:text=Step%2Dby%2DStep%20Debounce%20Instructions&text=Connect%20the%20220%2Dohm%20resistor,other%20side%20of%20the%20pushbutton.
-    3. Fix text label color on tap of rectangle
-    4. Refactor code so it is reusable
-      - use pointers?
-    5. Make FreqLabel struct with char[] label, x: int, y: int
-      - make function DrawLabel with params Label: FreqLabel, Color: Int
-    6. Make radio swap buttons
-    7. General optimizations
-*/
-
-/*
-Notes
-Screen: 480x320
-COM1, COM2, NAV1, NAV2
-Active ACT and Standby STBY freqs
-Tapping Standby allows rotary encoder to edit freq
-Tapping Transfer button switches ACT and STBY freqs
-Tapping Active COM changes airplane Tx to selected
-
-Extra:
-  - COM1 and COM2 lookup frequency database and return station name
-  - Rx mute buttons for COM freqs
-
-    |-----------------|                   |-----------------|
-    |                 |      ------       |                 |
-C1  |     123.456     |      | Rx |       |     123.456     |
-    |                 |      ------       |                 |
-    |-----------------|                   |-----------------|
-*/
 
 /*
   Dual Encoder GPIO Pins
@@ -60,6 +19,7 @@ TFT_eSPI tft = TFT_eSPI();
 BitsAndDroidsFlightConnector connector = BitsAndDroidsFlightConnector();
 
 #define TFT_GREY 0x5AEB
+#define TFT_TRANSPARENT 0x00
 #define bigA 32
 #define bigB 33
 #define smallA 25
@@ -96,19 +56,20 @@ ActiveEdit currEdit = ActiveEdit::COM1;
 
 // Initial freqs
 char com1act[8] = "122.800";
-char com1stby[8] = "122.800";
+char com1stby[8] = "123.800";
 char com2act[8] = "121.500";
-char com2stby[8] = "121.500";
+char com2stby[8] = "122.500";
 
 char nav1act[7] = "109.00";
-char nav1stby[7] = "109.00";
+char nav1stby[7] = "109.50";
 char nav2act[7] = "110.00";
-char nav2stby[7] = "110.00";
+char nav2stby[7] = "110.50";
 
 struct RoundedRectangle {
   int x, y, width, height;
   int color = TFT_BLACK;
   int command = -1;
+  
   void draw() {
     tft.fillRoundRect(x, y, width, height, 4, color);
     tft.drawRoundRect(x, y, width, height, 4, TFT_GREY);
@@ -179,22 +140,22 @@ struct FreqLabel {
   int x;
   int y;
   char* label;
-  int fgColor = TFT_WHITE;
-  void draw { 
-    
+  int color = TFT_WHITE; // white or black
+  
+  void draw() { 
+    tft.setTextSize(3);
+    tft.setTextColor(color, TFT_TRANSPARENT);
+    tft.drawString(label, x, y);
   }
 };
 
 /*
-  Draw initial frequency labels
+  Initial frequency labels
   Com1 Stby has black text with white background
 
   Freq labels -> x,y
   com1act: 40,40
-    - green background
-    - white text
   com1stby: 320,40
-    - white bg
     - black text
   com2act: 40,120
   com2stby: 320,120
@@ -208,16 +169,13 @@ struct FreqLabel {
 FreqLabel com1ACTLbl = {
   40,
   40,
-  com1act,
-  TFT_GREEN,
-  TFT_WHITE
+  com1act
 };
 
 FreqLabel com1STBYLbl = {
   320,
   40,
   com1stby,
-  TFT_WHITE,
   TFT_BLACK
 };
 
@@ -295,16 +253,14 @@ void startTouchGestureRecognizer() {
 */
 void handleCom1ACTTouched(RoundedRectangle rect) {
   // Set COM1 ACT Rect Green
-  rect.color = TFT_GREEN;
-  drawFillRoundedRect(rect);
-
-  // Reset Com 2 ACT
-  RoundedRectangle temp = com2ACT;
-  temp.color = TFT_BLACK;
-  drawFillRoundedRect(temp);
-  drawOutlineRoundedRect(temp);
+  com1ACT.color = TFT_GREEN;
+  com2ACT.color = TFT_BLACK;
+  com1ACT.draw();
+  com2ACT.draw();
 
   // Redraw text labels
+  com2ACTLbl.draw();
+  com1ACTLbl.draw();
 
   // Set COM 1 Tx
   Serial.println("Set COM 1 ACT Tx");
@@ -318,18 +274,14 @@ void handleCom1ACTTouched(RoundedRectangle rect) {
 */
 void handleCom2ACTTouched(RoundedRectangle rect) {
   // Set COM2 ACT Rect Green
-  rect.color = TFT_GREEN;
-  drawFillRoundedRect(rect);
-
-  // Reset Com 1 ACT
-  RoundedRectangle temp = com1ACT;
-  temp.color = TFT_BLACK;
-  drawFillRoundedRect(temp);
-  drawOutlineRoundedRect(temp);
+  com2ACT.color = TFT_GREEN;
+  com1ACT.color = TFT_BLACK;
+  com2ACT.draw();
+  com1ACT.draw();
 
   // Redraw text labels
-
-  // Set COM 2 Tx
+  com2ACTLbl.draw();
+  com1ACTLbl.draw();
   Serial.println("Set COM 2 ACT Tx");
 }
 
@@ -343,22 +295,20 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
 */
 void handleCom1STBYTouched(RoundedRectangle rect) {
   // Set COM1 STBY Rect White
-  rect.color = TFT_WHITE;
-  drawFillRoundedRect(rect);
+  com1STBY.color = TFT_WHITE;
+  com2STBY.color = TFT_BLACK;
 
-  // Reset Com 2 STBY
-  RoundedRectangle temp = com2STBY;
-  temp.color = TFT_BLACK;
-  drawFillRoundedRect(temp);
-  drawOutlineRoundedRect(temp);
+  com1STBY.draw();
+  com2STBY.draw();
 
   // Redraw Freq labels
-  // Com2
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString(com2stby, 320, 120);
   // Com1
-  tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  tft.drawString(com1stby, 320, 40);
+  com1STBYLbl.color = TFT_BLACK;
+  com1STBYLbl.draw();
+
+  // Com2
+  com2STBYLbl.color = TFT_WHITE;
+  com2STBYLbl.draw();
 
   Serial.println("Set COM 1 STBY Edit");
 }
@@ -373,22 +323,19 @@ void handleCom1STBYTouched(RoundedRectangle rect) {
 */
 void handleCom2STBYTouched(RoundedRectangle rect) {
   // Set COM2 STBY Rect White
-  rect.color = TFT_WHITE;
-  drawFillRoundedRect(rect);
-
-  // Reset Com 1 STBY
-  RoundedRectangle temp = com1STBY;
-  temp.color = TFT_BLACK;
-  drawFillRoundedRect(temp);
-  drawOutlineRoundedRect(temp);
-
+  com2STBY.color = TFT_WHITE;
+  com1STBY.color = TFT_BLACK;
+  com2STBY.draw();
+  com1STBY.draw();
+  
   // Redraw Freq labels
   // Com1
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString(com1stby, 320, 40);
+  com1STBYLbl.color = TFT_WHITE;
+  com1STBYLbl.draw();
+
   // Com2
-  tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  tft.drawString(com2stby, 320, 120);
+  com2STBYLbl.color = TFT_BLACK;
+  com2STBYLbl.draw();
 
   Serial.println("Set COM 2 STBY Edit");
 }
@@ -397,29 +344,25 @@ void handleCom2STBYTouched(RoundedRectangle rect) {
 void drawInitRects() {
   com1ACT.draw();
   com1STBY.draw();
-  com2Act.draw();
-  com2Stby.draw();
-  nav1Act.draw();
-  nav1Stby.draw();
-  nav2Act.draw();
-  nav2Stby.draw();
+  com2ACT.draw();
+  com2STBY.draw();
+  nav1ACT.draw();
+  nav1STBY.draw();
+  nav2ACT.draw();
+  nav2STBY.draw();
 }
 
 void drawInitFreqs() {
-  drawFreqLabel(com1ACTLbl);
-  drawFreqLabel(com1STBYLbl);
-  drawFreqLabel(com2ACTLbl);
-  drawFreqLabel(com2STBYLbl);
-  drawFreqLabel(nav1ACTLbl);
-  drawFreqLabel(nav1STBYLbl);
-  drawFreqLabel(nav2ACTLbl);
-  drawFreqLabel(nav2STBYLbl);
-}
+  com1ACTLbl.draw();
+  com2ACTLbl.draw();
+  com1STBYLbl.draw();
+  com2STBYLbl.draw();
+  nav1ACTLbl.draw();
+  nav2ACTLbl.draw();
+  nav1STBYLbl.draw();
+  nav2STBYLbl.draw();
 
-void drawFreqLabel(FreqLabel lbl) {
-  tft.setTextSize(3);
-  tft.setTextColor(lbl.fgColor, lbl.bgColor);
-  tft.drawString(lbl.label, lbl.x, lbl.y);
+  com1ACTLbl.label = "69.69";
 }
 
 void drawStaticLabels() {
@@ -515,6 +458,6 @@ void setup() {
 void loop() {
   startTouchGestureRecognizer();
 
-  connector.dataHandling();
-  getFreqs();
+  //connector.dataHandling();
+  //getFreqs();
 }
