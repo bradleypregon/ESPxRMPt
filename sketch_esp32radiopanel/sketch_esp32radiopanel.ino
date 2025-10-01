@@ -16,10 +16,11 @@
 #include <BitsAndDroidsFlightConnector.h>
 
 TFT_eSPI tft = TFT_eSPI();
-BitsAndDroidsFlightConnector connector = BitsAndDroidsFlightConnector();
+auto connector = BitsAndDroidsFlightConnector();
+ESP32Encoder smallEncoder;
+ESP32Encoder bigEncoder;
 
 #define TFT_GREY 0x5AEB
-#define TFT_TRANSPARENT 0x00
 #define bigA 32
 #define bigB 33
 #define smallA 25
@@ -33,16 +34,17 @@ byte xMargin = 20;
 byte yMargin = 20;
 
 // Encoder Inits
-unsigned long _lastBigIncReadTime = micros();
-unsigned long _lastBigDecReadTime = micros();
-unsigned long _lastSmallIncReadTime = micros();
-unsigned long _lastSmallDecReadTime = micros();
-int _encDelay = 25000;
-int _fastInc = 10;
+//unsigned long _lastBigIncReadTime = micros();
+//unsigned long _lastBigDecReadTime = micros();
+//unsigned long _lastSmallIncReadTime = micros();
+//unsigned long _lastSmallDecReadTime = micros();
+//int _encDelay = 25000;
+//int _fastInc = 10;
 
 // Encoder Switch Init
-unsigned long _lastSwReadTime = micros();
-long _swDelay = 100;
+unsigned long _swLastDebounceTime = 0;
+long _swDebounceDelay = 50;
+int _swButtonState = LOW;
 
 enum Commands {
   setCom1Tx = 0,
@@ -51,27 +53,28 @@ enum Commands {
   setCom2Rx = 3
 };
 
-enum ActiveEdit { COM1, COM2, NAV1, NAV2 };
+enum ActiveEdit { COM1,
+                  COM2,
+                  NAV1,
+                  NAV2 };
 ActiveEdit currEdit = ActiveEdit::COM1;
 
 // Initial freqs
-char com1act[8] = "122.800";
-char com1stby[8] = "123.800";
-char com2act[8] = "121.500";
-char com2stby[8] = "122.500";
+char com1act[comBuff]  = "122.800";
+char com1stby[comBuff] = "123.800";
+char com2act[comBuff]  = "121.500";
+char com2stby[comBuff] = "122.500";
 
-char nav1act[7] = "109.00";
-char nav1stby[7] = "109.50";
-char nav2act[7] = "110.00";
-char nav2stby[7] = "110.50";
+char nav1act[navBuff]  = "109.00";
+char nav1stby[navBuff] = "109.50";
+char nav2act[navBuff]  = "110.00";
+char nav2stby[navBuff] = "110.50";
 
 struct RoundedRectangle {
   int x, y, width, height;
-  int color = TFT_BLACK;
   int command = -1;
-  
+
   void draw() {
-    tft.fillRoundRect(x, y, width, height, 4, color);
     tft.drawRoundRect(x, y, width, height, 4, TFT_GREY);
   }
 };
@@ -81,7 +84,6 @@ RoundedRectangle com1ACT = {
   30,
   160,
   60,
-  TFT_GREEN,
   setCom1Tx
 };
 
@@ -89,8 +91,7 @@ RoundedRectangle com1STBY = {
   300,  //com1ACT.x + com1ACT.width + xMargin
   com1ACT.y,
   160,
-  60,
-  TFT_WHITE
+  60
 };
 
 RoundedRectangle com2ACT = {
@@ -140,11 +141,11 @@ struct FreqLabel {
   int x;
   int y;
   char* label;
-  int color = TFT_WHITE; // white or black
-  
-  void draw() { 
+  int color = TFT_GREY;
+
+  void draw() {
     tft.setTextSize(3);
-    tft.setTextColor(color, TFT_TRANSPARENT);
+    tft.setTextColor(color, TFT_BLACK, true);
     tft.drawString(label, x, y);
   }
 };
@@ -169,14 +170,15 @@ struct FreqLabel {
 FreqLabel com1ACTLbl = {
   40,
   40,
-  com1act
+  com1act,
+  TFT_GREEN
 };
 
 FreqLabel com1STBYLbl = {
   320,
   40,
   com1stby,
-  TFT_BLACK
+  TFT_WHITE
 };
 
 FreqLabel com2ACTLbl = {
@@ -252,13 +254,9 @@ void startTouchGestureRecognizer() {
   Params: rect: RoundedRectangle
 */
 void handleCom1ACTTouched(RoundedRectangle rect) {
-  // Set COM1 ACT Rect Green
-  com1ACT.color = TFT_GREEN;
-  com2ACT.color = TFT_BLACK;
-  com1ACT.draw();
-  com2ACT.draw();
-
   // Redraw text labels
+  com1ACTLbl.color = TFT_GREEN;
+  com2ACTLbl.color = TFT_WHITE;
   com2ACTLbl.draw();
   com1ACTLbl.draw();
 
@@ -273,15 +271,12 @@ void handleCom1ACTTouched(RoundedRectangle rect) {
   Params: rect: RoundedRectangle
 */
 void handleCom2ACTTouched(RoundedRectangle rect) {
-  // Set COM2 ACT Rect Green
-  com2ACT.color = TFT_GREEN;
-  com1ACT.color = TFT_BLACK;
-  com2ACT.draw();
-  com1ACT.draw();
-
   // Redraw text labels
+  com2ACTLbl.color = TFT_GREEN;
+  com1ACTLbl.color = TFT_WHITE;
   com2ACTLbl.draw();
   com1ACTLbl.draw();
+
   Serial.println("Set COM 2 ACT Tx");
 }
 
@@ -294,20 +289,10 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
   Params: rect: RoundedRectangle
 */
 void handleCom1STBYTouched(RoundedRectangle rect) {
-  // Set COM1 STBY Rect White
-  com1STBY.color = TFT_WHITE;
-  com2STBY.color = TFT_BLACK;
-
-  com1STBY.draw();
-  com2STBY.draw();
-
   // Redraw Freq labels
-  // Com1
-  com1STBYLbl.color = TFT_BLACK;
+  com1STBYLbl.color = TFT_WHITE;
+  com2STBYLbl.color = TFT_GREY;
   com1STBYLbl.draw();
-
-  // Com2
-  com2STBYLbl.color = TFT_WHITE;
   com2STBYLbl.draw();
 
   Serial.println("Set COM 1 STBY Edit");
@@ -322,19 +307,10 @@ void handleCom1STBYTouched(RoundedRectangle rect) {
   Params: rect: RoundedRectangle
 */
 void handleCom2STBYTouched(RoundedRectangle rect) {
-  // Set COM2 STBY Rect White
-  com2STBY.color = TFT_WHITE;
-  com1STBY.color = TFT_BLACK;
-  com2STBY.draw();
-  com1STBY.draw();
-  
   // Redraw Freq labels
-  // Com1
-  com1STBYLbl.color = TFT_WHITE;
+  com1STBYLbl.color = TFT_GREY;
+  com2STBYLbl.color = TFT_WHITE;
   com1STBYLbl.draw();
-
-  // Com2
-  com2STBYLbl.color = TFT_BLACK;
   com2STBYLbl.draw();
 
   Serial.println("Set COM 2 STBY Edit");
@@ -364,7 +340,7 @@ void drawInitFreqs() {
 }
 
 void drawStaticLabels() {
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK, true);
   tft.setTextSize(2);
   tft.drawString("ACT", 80, 10);    //((com1ACT.x + com1ACT.width) / 2) - 20, 10
   tft.drawString("STBY", 360, 10);  //((com1STBY.x + com1STBY.width) / 2) - 30, 10
@@ -372,81 +348,82 @@ void drawStaticLabels() {
   tft.drawString("NAV", 222, 170);
 }
 
-// Deprecate
-void drawFreqLabels() {
-  tft.setTextSize(3);
-
-  tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  tft.drawString(com1stby, 320, 40);
-
-  tft.setTextColor(TFT_WHITE, TFT_GREEN);
-  tft.drawString(com1act, 40, 40);
-
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  tft.drawString(com2act, 40, 120);
-  tft.drawString(com2stby, 320, 120);
-  tft.drawString(nav1act, 50, 200);
-  tft.drawString(nav1stby, 330, 200);
-  tft.drawString(nav2act, 50, 260);
-  tft.drawString(nav2stby, 330, 260);
-}
-
 void readSmallEncoder() {
   bool a = digitalRead(smallA);
   bool b = digitalRead(smallB);
   Serial.println((a ^ b) ? "Small INC" : "Small DEC");
+  (a^b) ? connector.send(sendCom1FractInc) : connector.send(sendCom1FractDecr);
 }
 
 void readBigEncoder() {
   bool a = digitalRead(bigA);
   bool b = digitalRead(bigB);
   Serial.println((a ^ b) ? "Big INC" : "Big DEC");
+  (a^b) ? connector.send(sendCom1WholeInc) : connector.send(sendCom1WholeDec);
 }
 
-/*
-  Swap Freqs for selected radio
-  e.g. If Com 1 Stby is active -> swap Com 1 radios
-  Switch currEdit<ActiveEdit>
-*/
 void readEncoderSw() {
-  static uint32_t last = 0;
-  uint32_t now = millis();
-  if (now - last > 15) {
-    Serial.println("Switch Button Pressed");
+  _swButtonState = digitalRead(sw);
+  // Filter out noise with timed buffer
+  if ((millis() - _swLastDebounceTime) > _swDebounceDelay) { 
+    if(_swButtonState == HIGH) { 
+      // Switch on activeEdit freq, send swap command
+      connector.send(sendSwapCom1);
+      _swLastDebounceTime = millis();
+    }
   }
-  last = now;
+}
+
+int smallEncoderPrevCount = 0;
+int bigEncoderPrevCount = 0;
+
+// if encoder.getCount() == prevCount, do nothing
+// if encoder.getCount() > prevCount, increase
+// if encoder.getCount() < prevCount, decrease
+void startSmallEncoderListen() { 
+  int count = smallEncoder.getCount();
+  if (count == smallEncoderPrevCount) { return; }
+  if (count > smallEncoderPrevCount) { 
+    Serial.println("Increase Fract");
+    connector.send(sendCom1FractInc);
+  } else if (count < smallEncoderPrevCount) { 
+    Serial.println("Decrease Fract");
+    connector.send(sendCom1FractDecr);
+  }
+
+  smallEncoderPrevCount = count;
+}
+
+void startBigEncoderListen() { 
+  int count = bigEncoder.getCount();
+  if (count == bigEncoderPrevCount) { return; }
+  if (count > bigEncoderPrevCount) { 
+    Serial.println("Increase Whole");
+    connector.send(sendCom1WholeInc);
+  } else if (count < bigEncoderPrevCount) { 
+    Serial.println("Decrease Whole");
+    connector.send(sendCom1WholeDec);
+  }
+
+  bigEncoderPrevCount = count;
 }
 
 void getFreqs() {
-  long com1a = connector.getActiveCom1();
-  long com2a = connector.getActiveCom2();
-  long com1s = connector.getStandbyCom1();
-  long com2s = connector.getStandbyCom2();
-  com1ACTLbl.label = convertFreq(com1a);
-  com2ACTLbl.label = convertFreq(com2a);
-  com1STBYLbl.label = convertFreq(com1s);
-  com2STBYLbl.label = convertFreq(com2s);
-
-  com1ACTLbl.draw();
-  com2ACTLbl.draw();
-  com1STBYLbl.draw();
-  com2STBYLbl.draw();
-
-  //long temp = connector.getActiveCom1();
-  //long whole = temp / 1000;
-  //long frac = abs(temp % 1000);
-  //char buf[8];
-  //snprintf(buf, sizeof(buf), "%ld.%03d", whole, frac);
-
-  //tft.drawString(buf, 40, 40);
+  convertFreq(connector.getActiveCom1(), com1act, sizeof(com1act));
+  //convertFreq(connector.getActiveCom2(), com2act, sizeof(com2act));
+  convertFreq(connector.getStandbyCom1(), com1stby, sizeof(com1stby));
+  //convertFreq(connector.getStandbyCom2(), com2stby, sizeof(com2stby));
 }
 
-char* convertFreq(long freq) { 
+void updateCom1(long newAct, long newStby) { 
+  if (newAct == newAct || newStby == newStby) { return; }
+
+}
+
+void convertFreq(long freq, char* out, size_t outSize) {
   long whole = freq / 1000;
   long frac = abs(freq % 1000);
-  char buf[8];
-  snprintf(buf, sizeof(buf), "%ld.%03d", whole, frac);
-  return buf;
+  snprintf(out, outSize, "%ld.%03d", whole, frac);
 }
 
 void setup() {
@@ -460,23 +437,19 @@ void setup() {
   drawInitRects();
   drawInitFreqs();
 
-  // Encoder Setup
-  pinMode(smallA, INPUT_PULLUP);
-  pinMode(smallB, INPUT_PULLUP);
-  pinMode(bigA, INPUT_PULLUP);
-  pinMode(bigB, INPUT_PULLUP);
   pinMode(sw, INPUT_PULLUP);
-
-  attachInterrupt(digitalPinToInterrupt(smallA), readSmallEncoder, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(smallB), readSmallEncoder, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(bigA), readBigEncoder, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(bigB), readBigEncoder, CHANGE);
   attachInterrupt(digitalPinToInterrupt(sw), readEncoderSw, CHANGE);
+
+  ESP32Encoder::useInternalWeakPullResistors = puType::up;
+  smallEncoder.attachHalfQuad(25, 26);
+  bigEncoder.attachHalfQuad(32, 33);
 }
 
 void loop() {
   startTouchGestureRecognizer();
-
   connector.dataHandling();
+
+  startSmallEncoderListen();
+  startBigEncoderListen();
   //getFreqs();
 }
