@@ -369,6 +369,7 @@ void readEncoderSw() {
     if(_swButtonState == HIGH) { 
       // Switch on activeEdit freq, send swap command
       connector.send(sendSwapCom1);
+      connector.send(4000); // fenix id for swap com 1
       _swLastDebounceTime = millis();
     }
   }
@@ -386,9 +387,11 @@ void startSmallEncoderListen() {
   if (count > smallEncoderPrevCount) { 
     Serial.println("Increase Fract");
     connector.send(sendCom1FractInc);
+    connector.send(4001); 
   } else if (count < smallEncoderPrevCount) { 
     Serial.println("Decrease Fract");
     connector.send(sendCom1FractDecr);
+    connector.send(4002);
   }
 
   smallEncoderPrevCount = count;
@@ -400,19 +403,25 @@ void startBigEncoderListen() {
   if (count > bigEncoderPrevCount) { 
     Serial.println("Increase Whole");
     connector.send(sendCom1WholeInc);
+    connector.send(4003);
   } else if (count < bigEncoderPrevCount) { 
     Serial.println("Decrease Whole");
     connector.send(sendCom1WholeDec);
+    connector.send(4004);
   }
 
   bigEncoderPrevCount = count;
 }
 
 void getFreqs() {
-  convertFreq(connector.getActiveCom1(), com1act, sizeof(com1act));
+  //convertFreq(connector.getActiveCom1(), com1act, sizeof(com1act));
   //convertFreq(connector.getActiveCom2(), com2act, sizeof(com2act));
-  convertFreq(connector.getStandbyCom1(), com1stby, sizeof(com1stby));
+  //convertFreq(connector.getStandbyCom1(), com1stby, sizeof(com1stby));
   //convertFreq(connector.getStandbyCom2(), com2stby, sizeof(com2stby));
+
+  String temp = connector.getPlaneName();
+  temp.toCharArray(com1act, 8);
+  com1ACTLbl.draw();
 }
 
 void updateCom1(long newAct, long newStby) { 
@@ -451,5 +460,5 @@ void loop() {
 
   startSmallEncoderListen();
   startBigEncoderListen();
-  //getFreqs();
+  getFreqs();
 }
