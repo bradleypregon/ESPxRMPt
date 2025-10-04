@@ -1,3 +1,4 @@
+#include <main.h>
 
 /*
   Dual Encoder GPIO Pins
@@ -11,35 +12,9 @@
     - switch  -> GPIO27/D27 Pin 16
 */
 
-#include <TFT_eSPI.h>
-#include <ESP32Encoder.h>
-#include <BitsAndDroidsFlightConnector.h>
-
-TFT_eSPI tft = TFT_eSPI();
-auto connector = BitsAndDroidsFlightConnector();
-ESP32Encoder smallEncoder;
-ESP32Encoder bigEncoder;
-
-#define TFT_GREY 0x5AEB
-#define bigA 32
-#define bigB 33
-#define smallA 25
-#define smallB 26
-#define sw 27
-#define comBuff 8
-#define navBuff 7
-
 uint16_t tX = 0, tY = 0;
 byte xMargin = 20;
 byte yMargin = 20;
-
-// Encoder Inits
-//unsigned long _lastBigIncReadTime = micros();
-//unsigned long _lastBigDecReadTime = micros();
-//unsigned long _lastSmallIncReadTime = micros();
-//unsigned long _lastSmallDecReadTime = micros();
-//int _encDelay = 25000;
-//int _fastInc = 10;
 
 // Encoder Switch Init
 unsigned long _swLastDebounceTime = 0;
@@ -69,15 +44,6 @@ char nav1act[navBuff]  = "109.00";
 char nav1stby[navBuff] = "109.50";
 char nav2act[navBuff]  = "110.00";
 char nav2stby[navBuff] = "110.50";
-
-struct RoundedRectangle {
-  int x, y, width, height;
-  int command = -1;
-
-  void draw() {
-    tft.drawRoundRect(x, y, width, height, 4, TFT_GREY);
-  }
-};
 
 RoundedRectangle com1ACT = {
   xMargin,
@@ -137,27 +103,10 @@ RoundedRectangle nav2STBY = {
   50
 };
 
-struct FreqLabel {
-  int x;
-  int y;
-  char* label;
-  int color = TFT_GREY;
-
-  void draw() {
-    tft.setTextSize(3);
-    tft.setTextColor(color, TFT_BLACK, true);
-    tft.drawString(label, x, y);
-  }
-};
-
 /*
-  Initial frequency labels
-  Com1 Stby has black text with white background
-
   Freq labels -> x,y
   com1act: 40,40
   com1stby: 320,40
-    - black text
   com2act: 40,120
   com2stby: 320,120
 
