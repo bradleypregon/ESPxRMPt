@@ -9,13 +9,16 @@ unsigned long _swLastDebounceTime = 0;
 long _swDebounceDelay = 50;
 int _swButtonState = LOW;
 
+int smallEncoderPrevCount = 0;
+int bigEncoderPrevCount = 0;
+
 ActiveEdit currEdit = ActiveEdit::COM1;
 
 std::unordered_map<std::string, FreqPair> freqs = {
-    {"COM1", {122800, 121500}},
-    {"COM2", {123800, 122500}},
-    {"NAV1", {10900, 10950}},
-    {"NAV2", {11000, 11050}},
+    {"COM1", {100001, 100001}},
+    {"COM2", {100001, 100001}},
+    {"NAV1", {10001,  10001}},
+    {"NAV2", {10001,  10001}},
 };
 
 RoundedRectangle com1ACT = {
@@ -100,13 +103,13 @@ FreqLabel com1STBYLbl = {
   320,
   40,
   freqs["COM1"].standby,
-  TFT_WHITE
+  TFT_YELLOW
 };
 
 FreqLabel com2ACTLbl = {
   40,
   120,
-  freqs["COM2"].active,
+  freqs["COM2"].active
 };
 
 FreqLabel com2STBYLbl = {
@@ -212,12 +215,12 @@ void handleCom2ACTTouched(RoundedRectangle rect) {
 */
 void handleCom1STBYTouched(RoundedRectangle rect) {
   // Redraw Freq labels
-  com1STBYLbl.color = TFT_WHITE;
-  com2STBYLbl.color = TFT_GREY;
+  com1STBYLbl.color = TFT_YELLOW;
+  com2STBYLbl.color = TFT_WHITE;
   com1STBYLbl.draw();
   com2STBYLbl.draw();
 
-  Serial.println("Set COM 1 STBY Edit");
+  currEdit = ActiveEdit::COM1;
 }
 
 /*
@@ -230,12 +233,12 @@ void handleCom1STBYTouched(RoundedRectangle rect) {
 */
 void handleCom2STBYTouched(RoundedRectangle rect) {
   // Redraw Freq labels
-  com1STBYLbl.color = TFT_GREY;
-  com2STBYLbl.color = TFT_WHITE;
+  com1STBYLbl.color = TFT_WHITE;
+  com2STBYLbl.color = TFT_YELLOW;
   com1STBYLbl.draw();
   com2STBYLbl.draw();
 
-  Serial.println("Set COM 2 STBY Edit");
+  currEdit = ActiveEdit::COM2;
 }
 
 
@@ -297,23 +300,31 @@ void readEncoderSw() {
   }
 }
 
-int smallEncoderPrevCount = 0;
-int bigEncoderPrevCount = 0;
-
-// if encoder.getCount() == prevCount, do nothing
-// if encoder.getCount() > prevCount, increase
-// if encoder.getCount() < prevCount, decrease
 void startSmallEncoderListen() { 
   int count = smallEncoder.getCount();
   if (count == smallEncoderPrevCount) { return; }
   if (count > smallEncoderPrevCount) { 
-    Serial.println("Increase Fract");
-    connector.send(sendCom1FractInc);
-    connector.send(4001); 
+    if (currEdit == ActiveEdit::COM1) { 
+      connector.send(sendCom1FractInc);
+    } else if (currEdit == ActiveEdit::COM2) { 
+      connector.send(sendCom2FractInc);
+    } else if (currEdit == ActiveEdit::NAV1) { 
+      connector.send(sendIncFractNav1);
+    } else if (currEdit == ActiveEdit::NAV2) { 
+      connector.send(sendIncFractNav2);
+    }
+    //connector.send(4001); 
   } else if (count < smallEncoderPrevCount) { 
-    Serial.println("Decrease Fract");
-    connector.send(sendCom1FractDecr);
-    connector.send(4002);
+    if (currEdit == ActiveEdit::COM1) { 
+      connector.send(sendCom1FractDecr);
+    } else if (currEdit == ActiveEdit::COM2) { 
+      connector.send(sendCom2FractDecr);
+    } else if (currEdit == ActiveEdit::NAV1) { 
+      connector.send(sendDecFractNav1);
+    } else if (currEdit == ActiveEdit::NAV2) { 
+      connector.send(sendDecFractNav2);
+    }
+    //connector.send(4002);
   }
 
   smallEncoderPrevCount = count;
@@ -322,14 +333,29 @@ void startSmallEncoderListen() {
 void startBigEncoderListen() { 
   int count = bigEncoder.getCount();
   if (count == bigEncoderPrevCount) { return; }
+  
   if (count > bigEncoderPrevCount) { 
-    Serial.println("Increase Whole");
-    connector.send(sendCom1WholeInc);
-    connector.send(4003);
+    if (currEdit == ActiveEdit::COM1) { 
+      connector.send(sendCom1WholeInc);
+    } else if (currEdit == ActiveEdit::COM2) { 
+      connector.send(sendCom2WholeInc);
+    } else if (currEdit == ActiveEdit::NAV1) { 
+      connector.send(sendIncWholeNav1);
+    } else if (currEdit == ActiveEdit::NAV2) { 
+      connector.send(sendIncWholeNav2);
+    }
+    //connector.send(4003);
   } else if (count < bigEncoderPrevCount) { 
-    Serial.println("Decrease Whole");
-    connector.send(sendCom1WholeDec);
-    connector.send(4004);
+    if (currEdit == ActiveEdit::COM1) { 
+      connector.send(sendCom1WholeDec);
+    } else if (currEdit == ActiveEdit::COM2) { 
+      connector.send(sendCom2WholeDec);
+    } else if (currEdit == ActiveEdit::NAV1) { 
+      connector.send(sendDecWholeNav1);
+    } else if (currEdit == ActiveEdit::NAV2) { 
+      connector.send(sendDecWholeNav2);
+    }
+    //connector.send(4004);
   }
 
   bigEncoderPrevCount = count;
@@ -347,15 +373,23 @@ void updateFreq(std::string radio, FreqPair newFreqs) {
   freqs[radio] = newFreqs;
 
   if (radio == "COM1") { 
+    com1ACTLbl.freq = newFreqs.active;
+    com1STBYLbl.freq = newFreqs.standby;
     com1ACTLbl.draw();
     com1STBYLbl.draw();
   } else if (radio == "COM2") { 
+    com2ACTLbl.freq = newFreqs.active;
+    com2STBYLbl.freq = newFreqs.standby;
     com2ACTLbl.draw();
     com2STBYLbl.draw();
   } else if (radio == "NAV1") { 
+    nav1ACTLbl.freq = newFreqs.active;
+    nav1STBYLbl.freq = newFreqs.standby;
     nav1ACTLbl.draw();
     nav1STBYLbl.draw();
   } else if (radio == "NAV2") { 
+    nav2ACTLbl.freq = newFreqs.active;
+    nav2STBYLbl.freq = newFreqs.standby;
     nav2ACTLbl.draw();
     nav2STBYLbl.draw();
   }
@@ -383,14 +417,13 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(sw), readEncoderSw, CHANGE);
 
   ESP32Encoder::useInternalWeakPullResistors = puType::up;
-  smallEncoder.attachHalfQuad(25, 26);
-  bigEncoder.attachHalfQuad(32, 33);
+  smallEncoder.attachHalfQuad(smallA, smallB);
+  bigEncoder.attachHalfQuad(bigA, bigB);
 }
 
 void loop() {
   startTouchGestureRecognizer();
   connector.dataHandling();
-
   startSmallEncoderListen();
   startBigEncoderListen();
   getFreqs();

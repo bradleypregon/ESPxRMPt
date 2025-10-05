@@ -67,11 +67,13 @@ struct FreqLabel {
   int x;
   int y;
   long freq;
-  int color = TFT_GREY;
+  int color = TFT_WHITE;
 
   const char* convertFreq() {
+    if (freq == 000000) { return "000.000"; }
+    if (freq == 00000) { return "000.00"; }
     std::string label = std::to_string(freq);
-    label.insert(4, ".");
+    label.insert(3, ".");
     return label.c_str();
   }
 
