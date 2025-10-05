@@ -1,17 +1,5 @@
 #include <main.h>
 
-/*
-  Dual Encoder GPIO Pins
-  Small knob:
-    - A (cw)  -> GPIO25/D25 Pin 14
-    - B (ccw) -> GPIO26/D26 Pin 15
-  Big knob:
-    - a (cw)  -> GPIO32/D32 Pin 12
-    - b (ccw) -> GPIO33/D33 Pin 13
-  Switch:
-    - switch  -> GPIO27/D27 Pin 16
-*/
-
 uint16_t tX = 0, tY = 0;
 byte xMargin = 20;
 byte yMargin = 20;
@@ -21,29 +9,14 @@ unsigned long _swLastDebounceTime = 0;
 long _swDebounceDelay = 50;
 int _swButtonState = LOW;
 
-enum Commands {
-  setCom1Tx = 0,
-  setCom1Rx = 1,
-  setCom2Tx = 2,
-  setCom2Rx = 3
-};
-
-enum ActiveEdit { COM1,
-                  COM2,
-                  NAV1,
-                  NAV2 };
 ActiveEdit currEdit = ActiveEdit::COM1;
 
-// Initial freqs
-char com1act[comBuff]  = "122.800";
-char com1stby[comBuff] = "123.800";
-char com2act[comBuff]  = "121.500";
-char com2stby[comBuff] = "122.500";
-
-char nav1act[navBuff]  = "109.00";
-char nav1stby[navBuff] = "109.50";
-char nav2act[navBuff]  = "110.00";
-char nav2stby[navBuff] = "110.50";
+std::unordered_map<std::string, FreqPair> freqs = {
+    {"COM1", {122800, 121500}},
+    {"COM2", {123800, 122500}},
+    {"NAV1", {10900, 10950}},
+    {"NAV2", {11000, 11050}},
+};
 
 RoundedRectangle com1ACT = {
   xMargin,
@@ -119,51 +92,51 @@ RoundedRectangle nav2STBY = {
 FreqLabel com1ACTLbl = {
   40,
   40,
-  com1act,
+  freqs["COM1"].active,
   TFT_GREEN
 };
 
 FreqLabel com1STBYLbl = {
   320,
   40,
-  com1stby,
+  freqs["COM1"].standby,
   TFT_WHITE
 };
 
 FreqLabel com2ACTLbl = {
   40,
   120,
-  com2act
+  freqs["COM2"].active,
 };
 
 FreqLabel com2STBYLbl = {
   320,
   120,
-  com2stby
+  freqs["COM2"].standby,
 };
 
 FreqLabel nav1ACTLbl = {
   50,
   200,
-  nav1act
+  freqs["NAV1"].active
 };
 
 FreqLabel nav1STBYLbl = {
   330,
   200,
-  nav1stby
+  freqs["NAV1"].standby
 };
 
 FreqLabel nav2ACTLbl = {
   50,
   260,
-  nav2act
+  freqs["NAV2"].active
 };
 
 FreqLabel nav2STBYLbl = {
   330,
   260,
-  nav2stby
+  freqs["NAV2"].standby
 };
 
 void startTouchGestureRecognizer() {
@@ -297,19 +270,19 @@ void drawStaticLabels() {
   tft.drawString("NAV", 222, 170);
 }
 
-void readSmallEncoder() {
-  bool a = digitalRead(smallA);
-  bool b = digitalRead(smallB);
-  Serial.println((a ^ b) ? "Small INC" : "Small DEC");
-  (a^b) ? connector.send(sendCom1FractInc) : connector.send(sendCom1FractDecr);
-}
+//void readSmallEncoder() {
+//  bool a = digitalRead(smallA);
+//  bool b = digitalRead(smallB);
+//  Serial.println((a ^ b) ? "Small INC" : "Small DEC");
+//  (a^b) ? connector.send(sendCom1FractInc) : connector.send(sendCom1FractDecr);
+//}
 
-void readBigEncoder() {
-  bool a = digitalRead(bigA);
-  bool b = digitalRead(bigB);
-  Serial.println((a ^ b) ? "Big INC" : "Big DEC");
-  (a^b) ? connector.send(sendCom1WholeInc) : connector.send(sendCom1WholeDec);
-}
+//void readBigEncoder() {
+//  bool a = digitalRead(bigA);
+//  bool b = digitalRead(bigB);
+//  Serial.println((a ^ b) ? "Big INC" : "Big DEC");
+//  (a^b) ? connector.send(sendCom1WholeInc) : connector.send(sendCom1WholeDec);
+//}
 
 void readEncoderSw() {
   _swButtonState = digitalRead(sw);
@@ -363,26 +336,37 @@ void startBigEncoderListen() {
 }
 
 void getFreqs() {
-  //convertFreq(connector.getActiveCom1(), com1act, sizeof(com1act));
-  //convertFreq(connector.getActiveCom2(), com2act, sizeof(com2act));
-  //convertFreq(connector.getStandbyCom1(), com1stby, sizeof(com1stby));
-  //convertFreq(connector.getStandbyCom2(), com2stby, sizeof(com2stby));
-
-  String temp = connector.getPlaneName();
-  temp.toCharArray(com1act, 8);
-  com1ACTLbl.draw();
+  updateFreq("COM1", FreqPair{connector.getActiveCom1(), connector.getStandbyCom1()});
+  updateFreq("COM2", FreqPair{connector.getActiveCom2(), connector.getStandbyCom2()});
+  updateFreq("NAV1", FreqPair{connector.getActiveNav1(), connector.getStandbyNav1()});
+  updateFreq("NAV2", FreqPair{connector.getActiveNav2(), connector.getStandbyNav2()});
 }
 
-void updateCom1(long newAct, long newStby) { 
-  if (newAct == newAct || newStby == newStby) { return; }
+void updateFreq(std::string radio, FreqPair newFreqs) { 
+  if (freqs[radio].active == newFreqs.active && freqs[radio].standby == newFreqs.standby) { return; }
+  freqs[radio] = newFreqs;
 
+  if (radio == "COM1") { 
+    com1ACTLbl.draw();
+    com1STBYLbl.draw();
+  } else if (radio == "COM2") { 
+    com2ACTLbl.draw();
+    com2STBYLbl.draw();
+  } else if (radio == "NAV1") { 
+    nav1ACTLbl.draw();
+    nav1STBYLbl.draw();
+  } else if (radio == "NAV2") { 
+    nav2ACTLbl.draw();
+    nav2STBYLbl.draw();
+  }
 }
 
-void convertFreq(long freq, char* out, size_t outSize) {
-  long whole = freq / 1000;
-  long frac = abs(freq % 1000);
-  snprintf(out, outSize, "%ld.%03d", whole, frac);
-}
+// Deprecated
+//void convertFreq(long freq, char* out, size_t outSize) {
+//  long whole = freq / 1000;
+//  long frac = abs(freq % 1000);
+//  snprintf(out, outSize, "%ld.%03d", whole, frac);
+//}
 
 void setup() {
   Serial.begin(115200);

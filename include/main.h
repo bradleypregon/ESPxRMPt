@@ -5,8 +5,19 @@
 #include <ESP32Encoder.h>
 #include <BitsAndDroidsFlightConnector.h>
 #include <string>
+#include <unordered_map>
 
-// Pins
+/*
+  Dual Encoder GPIO Pins
+  Small knob:
+    - A (cw)  -> GPIO25/D25 Pin 14
+    - B (ccw) -> GPIO26/D26 Pin 15
+  Big knob:
+    - a (cw)  -> GPIO32/D32 Pin 12
+    - b (ccw) -> GPIO33/D33 Pin 13
+  Switch:
+    - switch  -> GPIO27/D27 Pin 16
+*/
 #define bigA 32
 #define bigB 33
 #define smallA 25
@@ -15,43 +26,59 @@
 
 // Other
 #define TFT_GREY 0x5AEB
-#define comBuff 8
-#define navBuff 7
+#define roundRectRadius 4
+//#define freqBuff 8
 
 TFT_eSPI tft;
 BitsAndDroidsFlightConnector connector;
 ESP32Encoder smallEncoder;
 ESP32Encoder bigEncoder;
 
-long c1a = 122800;
-long c2a = 123800;
-long c1s = 121500;
-long c2s = 122500;
+// COM/NAV ACT/STBY Freqs
+struct FreqPair {
+  long active;
+  long standby;
+};
 
-long n1a = 10900;
-long n2a = 11000;
-long n1s = 10950;
-long n2s = 11050;
+enum Commands {
+  setCom1Tx = 0,
+  setCom1Rx = 1,
+  setCom2Tx = 2,
+  setCom2Rx = 3
+};
+
+enum ActiveEdit { 
+  COM1,
+  COM2,
+  NAV1,
+  NAV2 
+};
 
 struct RoundedRectangle {
   int x, y, width, height;
   int command = -1;
 
   void draw() {
-    tft.drawRoundRect(x, y, width, height, 4, TFT_GREY);
+    tft.drawRoundRect(x, y, width, height, roundRectRadius, TFT_GREY);
   }
 };
 
 struct FreqLabel {
   int x;
   int y;
-  char* label;
+  long freq;
   int color = TFT_GREY;
+
+  const char* convertFreq() {
+    std::string label = std::to_string(freq);
+    label.insert(4, ".");
+    return label.c_str();
+  }
 
   void draw() {
     tft.setTextSize(3);
     tft.setTextColor(color, TFT_BLACK, true);
-    tft.drawString(label, x, y);
+    tft.drawString(convertFreq(), x, y);
   }
 };
 
@@ -59,3 +86,5 @@ void handleCom1ACTTouched(RoundedRectangle);
 void handleCom2ACTTouched(RoundedRectangle);
 void handleCom1STBYTouched(RoundedRectangle);
 void handleCom2STBYTouched(RoundedRectangle);
+
+void updateFreq(std::string, FreqPair newFreqs);
