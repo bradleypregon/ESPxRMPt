@@ -14,11 +14,16 @@ int bigEncoderPrevCount = 0;
 
 ActiveEdit currEdit = ActiveEdit::COM1;
 
+AircraftProfile asoboProfile = {"Asobo", {}};
+AircraftProfile fenixProfile = {"FNX320", {}};
+
+AircraftProfile* activeProfile = &asoboProfile;
+
 std::unordered_map<std::string, FreqPair> freqs = {
-    {"COM1", {100001, 100001}},
-    {"COM2", {100001, 100001}},
-    {"NAV1", {10001,  10001}},
-    {"NAV2", {10001,  10001}},
+    {"COM1", {00, 00}},
+    {"COM2", {00, 00}},
+    {"NAV1", {0, 0}},
+    {"NAV2", {0, 0}},
 };
 
 RoundedRectangle com1ACT = {
@@ -169,6 +174,16 @@ void startTouchGestureRecognizer() {
     if ((tX > nav2STBY.x && tX < nav2STBY.x + nav2STBY.width) && (tY > nav2STBY.y && tY < nav2STBY.y + nav2STBY.height)) {
       //handleNav2STBYTouched(nav2STBY);
     }
+  }
+}
+
+void handleComTouch(std::string radio) {
+  if (radio == "c1a") {
+    // Set COM 1 Tx
+    Serial.println("Set COM 1 ACT Tx");
+  } else if (radio == "c2a") {
+    // Set COM 2 Tx
+    Serial.println("Set COM 2 ACT Tx");
   }
 }
 

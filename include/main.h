@@ -6,6 +6,7 @@
 #include <BitsAndDroidsFlightConnector.h>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 /*
   Dual Encoder GPIO Pins
@@ -70,8 +71,8 @@ struct FreqLabel {
   int color = TFT_WHITE;
 
   const char* convertFreq() {
-    if (freq == 000000) { return "000.000"; }
-    if (freq == 00000) { return "000.00"; }
+    if (freq == 00) { return "000.000"; }
+    if (freq == 0) { return "000.00"; }
     std::string label = std::to_string(freq);
     label.insert(3, ".");
     return label.c_str();
@@ -90,3 +91,26 @@ void handleCom1STBYTouched(RoundedRectangle);
 void handleCom2STBYTouched(RoundedRectangle);
 
 void updateFreq(std::string, FreqPair newFreqs);
+
+struct AircraftProfile { 
+  const std::string name;
+  std::vector<int> commands;
+
+  void sendCommand() { }
+};
+
+enum CUSTOM_COMMANDS { 
+  sendFnxRmp1Vhf1WholeInc = 4000, 
+  sendFnxRmp1Vhf1WholeDec = 4001,
+  sendFnxRmp1Vhf1FractInc = 4002,
+  sendFnxRmp1Vhf1FractDec = 4003,
+  sendFnxRmp1Vhf2WholeInc = 4004,
+  sendFnxRmp1Vhf2WholeDec = 4005,
+  sendFnxRmp1Vhf2FractInc = 4006,
+  sendFnxRmp1Vhf2FractDec = 4007
+}
+
+
+//void onEncoderClockwise() {
+//  if (activeProfile->sendCom1Inc) activeProfile->sendCom1Inc();
+//}
