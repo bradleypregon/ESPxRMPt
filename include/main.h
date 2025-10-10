@@ -1,5 +1,3 @@
-// i am not a c++ programmer
-
 #include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <ESP32Encoder.h>
@@ -28,7 +26,6 @@
 // Other
 #define TFT_GREY 0x5AEB
 #define roundRectRadius 4
-//#define freqBuff 8
 
 TFT_eSPI tft;
 BitsAndDroidsFlightConnector connector;
@@ -94,7 +91,7 @@ void updateFreq(std::string, FreqPair newFreqs);
 
 struct AircraftProfile { 
   const std::string name;
-  std::vector<int> commands;
+  std::vector<uint16_t> commands;
 
   void sendCommand() { }
 };
@@ -108,7 +105,7 @@ enum CUSTOM_COMMANDS {
   sendFnxRmp1Vhf2WholeDec = 4005,
   sendFnxRmp1Vhf2FractInc = 4006,
   sendFnxRmp1Vhf2FractDec = 4007
-}
+};
 
 
 //void onEncoderClockwise() {
